@@ -1,0 +1,224 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-gray-50: #fafafa;
+  --color-gray-100: #f5f5f5;
+  --color-gray-200: #e5e5e5;
+  --color-gray-300: #d4d4d4;
+  --color-gray-400: #a3a3a3;
+  --color-gray-500: #737373;
+  --color-gray-600: #525252;
+  --color-gray-700: #404040;
+  --color-gray-800: #262626;
+  --color-gray-900: #171717;
+  --color-gray-950: #0a0a0a;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+button,
+button:hover,
+button:focus,
+button:focus-visible,
+button:active {
+  box-shadow: none !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-shadow: 0 0 #0000 !important;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+.dark :is(input, textarea, select):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]) {
+  background-color: #262626 !important;
+  color: rgb(249 250 251) !important;
+  -webkit-text-fill-color: rgb(249 250 251) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: rgb(163 163 163);
+}
+
+.dark input:-webkit-autofill,
+.dark input:-webkit-autofill:hover,
+.dark input:-webkit-autofill:focus,
+.dark input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #262626 inset !important;
+  -webkit-text-fill-color: rgb(249 250 251) !important;
+  caret-color: rgb(249 250 251);
+}
+
+/* MDEditor Dark Mode - Preview only (editor uses default to avoid cursor sync issues) */
+.dark .w-md-editor-preview {
+  background-color: #171717 !important;
+  color: rgb(229 231 235) !important;
+}
+
+.dark .w-md-editor-preview h1,
+.dark .w-md-editor-preview h2,
+.dark .w-md-editor-preview h3,
+.dark .w-md-editor-preview h4,
+.dark .w-md-editor-preview h5,
+.dark .w-md-editor-preview h6 {
+  color: rgb(249 250 251) !important;
+}
+
+.dark .w-md-editor-preview p,
+.dark .w-md-editor-preview li {
+  color: rgb(229 231 235) !important;
+}
+
+.dark .w-md-editor-preview code {
+  background-color: #262626 !important;
+  color: rgb(249 250 251) !important;
+}
+
+.dark .w-md-editor-preview pre {
+  background-color: #262626 !important;
+}
+
+.dark .w-md-editor-preview blockquote {
+  border-left-color: rgb(239 68 68) !important;
+  color: rgb(209 213 219) !important;
+}
+
+.dark .w-md-editor-preview a {
+  color: rgb(252 165 165) !important;
+}
+
+/* Cursor sync fix for MDEditor */
+.w-md-editor-text-input textarea,
+.w-md-editor-text-pre {
+  font-family: inherit !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+  word-spacing: inherit !important;
+}
+
+/* Smooth scrollbar for the whole app */
+html {
+  scrollbar-gutter: stable;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+/* Hide scrollbar utility */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Fix note text visibility in dark mode (ensures markdown elements inherit text color) */
+.prose p, 
+.prose h1, 
+.prose h2, 
+.prose h3, 
+.prose h4, 
+.prose h5, 
+.prose h6, 
+.prose li, 
+.prose strong, 
+.prose em, 
+.prose blockquote, 
+.prose code {
+  color: currentColor;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(24px) scale(0.98); } 
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.2); } 
+  100% { transform: scale(1); }
+}
+
+.animate-fade-in-up { animation: fade-in-up 0.4s ease-out both; }
+.animate-fade-in    { animation: fade-in 0.2s ease-out both; }
+.animate-slide-up   { animation: slide-up 0.3s ease-out both; }
+.animate-pop-in     { animation: pop-in 0.3s ease-out both; }
+
+/* BULLETPROOF MDEditor Dark Mode Fix */
+/* Hide the broken syntax highlighting layer and make the raw textarea text white and visible */
+.dark .w-md-editor-text-pre {
+  visibility: hidden !important;
+}
+.dark .w-md-editor-text-input textarea {
+  color: rgb(249 250 251) !important;
+  -webkit-text-fill-color: rgb(249 250 251) !important;
+  background-color: transparent !important;
+  caret-color: rgb(249 250 251) !important;
+}
+
+.dark .w-md-editor textarea,
+.dark textarea.w-md-editor-text-input,
+.dark .w-md-editor-text-input textarea {
+  background-color: #262626 !important;
+  color: rgb(249 250 251) !important;
+  -webkit-text-fill-color: rgb(249 250 251) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 50 !important;
+}
+
+.dark .w-md-editor-text-pre {
+  display: none !important;
+}
+
+/* Unify font size across editor and preview */
+.w-md-editor-text-input textarea,
+.w-md-editor-text-pre,
+.w-md-editor-preview,
+.w-md-editor-preview p,
+.w-md-editor-preview li {
+  font-size: 15px !important;
+  line-height: 1.6 !important;
+}
+
+/* Fix text input not stretching to bottom */
+.w-md-editor-text,
+.w-md-editor-text-input,
+.w-md-editor-text-input textarea {
+  min-height: 100% !important;
+  height: 100% !important;
+}
+
+.dark .w-md-editor-text {
+  background-color: #262626 !important;
+}
