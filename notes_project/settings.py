@@ -25,7 +25,11 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+_raw_hosts = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS = [
+    h.strip().replace("https://", "").replace("http://", "").rstrip("/")
+    for h in _raw_hosts.split(",") if h.strip()
+]
 
 # ---------------------------------------------------------------------------
 # Application Definition
@@ -217,10 +221,10 @@ SIMPLE_JWT = {
 # ---------------------------------------------------------------------------
 
 _cors_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
-CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+CORS_ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in _cors_origins.split(",") if o.strip()]
 
 _csrf_origins = os.getenv("CSRF_TRUSTED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
-CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(",") if o.strip()]
+CSRF_TRUSTED_ORIGINS = [o.strip().rstrip("/") for o in _csrf_origins.split(",") if o.strip()]
 
 CORS_ALLOW_CREDENTIALS = True   # needed if your frontend sends cookies / auth headers
 
@@ -265,6 +269,12 @@ AUTHENTICATION_BACKENDS = [
 AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # 1 hour lockout
 AXES_LOCKOUT_TEMPLATE = None # Can be configured for a custom view
+
+# Tell axes to look at the X-Forwarded-For header since we are behind Render's reverse proxy
+AXES_META_PRECEDENCE_ORDER = [
+    'HTTP_X_FORWARDED_FOR',
+    'REMOTE_ADDR',
+]
 
 # ---------------------------------------------------------------------------
 # Password Reset & Email Configuration

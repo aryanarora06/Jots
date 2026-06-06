@@ -30,7 +30,7 @@ Your codebase is exactly configured for a Vercel (Frontend) and Render (Backend 
    - **Branch:** `main`.
    - **Root Directory:** *(leave this completely blank!)*.
    - **Build Command:** `bash build.sh` *(Using 'bash' ensures it runs perfectly even if Windows Git stripped the executable permissions from the script)*.
-   - **Start Command:** `gunicorn notes_project.wsgi:application`.
+   - **Start Command:** `gunicorn notes_project.wsgi:application --bind 0.0.0.0:$PORT`.
    - **Instance Type:** Select **Free**.
 
 4. Scroll down to **Advanced** and click **Add Environment Variable**. Add the following exactly:
@@ -81,14 +81,18 @@ Right now, if you visit your Vercel site, it will fail to log in. This is a secu
 
 ## 🔐 PHASE 5: Create Your Admin Account
 
-Finally, you need a master account to access the Django admin panel and manage your live database.
+Because the Free tier of Render doesn't provide shell access, we've updated `build.sh` to automatically create your admin account for you using environment variables!
 
-1. In your Render backend dashboard, click the **Shell** tab on the left.
-2. Type the following command and hit Enter:
-   ```bash
-   python manage.py createsuperuser
-   ```
-3. Follow the prompts to enter your username, email, and password. (Note: when you type your password, nothing will show on the screen. This is normal security behavior in Linux. Just type it and hit Enter).
-4. Go to `https://jots-backend.onrender.com/admin` and log in with those exact credentials.
+1. Go back to your Render backend dashboard and click **Environment**.
+2. Add the following three variables:
+   - `DJANGO_SUPERUSER_USERNAME` : `admin` (or whatever username you want)
+   - `DJANGO_SUPERUSER_EMAIL` : `admin@example.com`
+   - `DJANGO_SUPERUSER_PASSWORD` : `your-secure-password123`
+3. Click **Save Changes**.
+4. To trigger the creation, Render might automatically restart. If not, click **Manual Deploy** -> **Deploy latest commit** in the top right corner.
+5. Once the deploy finishes, your superuser is successfully created!
+6. Go to `https://jots-backend.onrender.com/admin` and log in.
+
+> **TIP:** For security, after you've successfully logged in, you should go back to Render and remove those three `DJANGO_SUPERUSER_` environment variables so your password isn't sitting in plain text in the settings. The account will remain permanently saved in the database!
 
 **Congratulations! Your application is now fully deployed, secure, and live on the internet! 🎉**
