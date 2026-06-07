@@ -32,6 +32,19 @@ ALLOWED_HOSTS = [
 ]
 
 # ---------------------------------------------------------------------------
+# Production Security Settings (Enabled when DEBUG is False)
+# ---------------------------------------------------------------------------
+
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# ---------------------------------------------------------------------------
 # Application Definition
 # ---------------------------------------------------------------------------
 
@@ -177,9 +190,9 @@ REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",
     ),
-    # Pagination: 20 notes per page
+    # Pagination: 21 notes per page
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
-    "PAGE_SIZE": 20,
+    "PAGE_SIZE": 21,
     # Input validation
     "DEFAULT_PARSER_CLASSES": (
         "rest_framework.parsers.JSONParser",
@@ -270,11 +283,7 @@ AXES_FAILURE_LIMIT = 5
 AXES_COOLOFF_TIME = 1  # 1 hour lockout
 AXES_LOCKOUT_TEMPLATE = None # Can be configured for a custom view
 
-# Tell axes to look at the X-Forwarded-For header since we are behind Render's reverse proxy
-AXES_META_PRECEDENCE_ORDER = [
-    'HTTP_X_FORWARDED_FOR',
-    'REMOTE_ADDR',
-]
+# AXES_META_PRECEDENCE_ORDER is deprecated. Default axes IP lookup resolves reverse proxy headers.
 
 # ---------------------------------------------------------------------------
 # Password Reset & Email Configuration

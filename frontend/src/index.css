@@ -14,10 +14,27 @@
   --color-gray-800: #262626;
   --color-gray-900: #171717;
   --color-gray-950: #0a0a0a;
+
+  --radius-none: 0px;
+  --radius-sm: 0px;
+  --radius: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-full: 0px;
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  accent-color: #000;
+}
+.dark body,
+body:where(.dark, .dark *) {
+  accent-color: #fff;
 }
 
 button,
@@ -105,6 +122,7 @@ button:active {
 /* Smooth scrollbar for the whole app */
 html {
   scrollbar-gutter: stable;
+  overflow-x: hidden;
 }
 
 ::-webkit-scrollbar {
@@ -221,4 +239,45 @@ html {
 
 .dark .w-md-editor-text {
   background-color: #262626 !important;
+}
+
+/* --- Custom Slider Overrides --- */
+.custom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #e5e5e5;
+  outline: none;
+  border-radius: 0;
+}
+.dark .custom-slider {
+  background: #404040;
+}
+
+/* Webkit (Chrome, Safari, Edge) */
+.custom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #000;
+  cursor: pointer;
+  border-radius: 0;
+}
+.dark .custom-slider::-webkit-slider-thumb {
+  background: #fff;
+}
+
+/* Firefox */
+.custom-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: #000;
+  cursor: pointer;
+  border: none;
+  border-radius: 0;
+}
+.dark .custom-slider::-moz-range-thumb {
+  background: #fff;
 }

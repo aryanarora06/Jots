@@ -15,8 +15,9 @@ from rest_framework.response import Response
 
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
-from .models import Note, Tag, ShareLink, SharedNote
+from .models import Note, Tag, ShareLink, SharedNote, NoteLink
 from .word_count import count_note_words
+from .wikilinks import sync_note_links
 from .serializers import (
     UserRegistrationSerializer, NoteSerializer, TagSerializer,
     ShareLinkSerializer, SharedNoteSerializer, AcceptShareSerializer,
@@ -148,8 +149,17 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         Automatically assign the authenticated user as owner.
         The client has no mechanism to override this.
+        After saving, sync any [[wikilinks]] in the content.
         """
-        serializer.save(owner=self.request.user)
+        note = serializer.save(owner=self.request.user)
+        sync_note_links(note)
+
+    def perform_update(self, serializer):
+        """
+        After updating a note, re-sync [[wikilinks]].
+        """
+        note = serializer.save()
+        sync_note_links(note)
 
     def perform_destroy(self, instance):
         """Soft-delete: move to trash instead of permanent deletion."""
@@ -466,9 +476,146 @@ class EmptyTrashView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request):
-        owned_count, _ = Note.objects.filter(owner=request.user, is_trashed=True).delete()
-        shared_count, _ = SharedNote.objects.filter(user=request.user, is_trashed=True).delete()
-        return Response(
-            {'detail': f'Permanently deleted {owned_count} owned and {shared_count} shared notes.'},
-            status=status.HTTP_200_OK
+        """Hard-delete ALL items in the trash."""
+        owned = Note.objects.filter(owner=request.user, is_trashed=True)
+        shared = SharedNote.objects.filter(user=request.user, is_trashed=True)
+        count = owned.count() + shared.count()
+        owned.delete()
+        shared.delete()
+        return Response({"message": f"{count} item(s) permanently deleted."}, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# Graph View — Interactive knowledge graph
+# ---------------------------------------------------------------------------
+
+class GraphView(APIView):
+    """
+    GET /api/notes/graph/
+
+    Returns all user's notes as nodes and their [[wikilinks]] as edges
+    for rendering an interactive knowledge graph.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notes = Note.objects.filter(
+            owner=request.user,
+            is_trashed=False,
+        ).prefetch_related('tags').only('id', 'title', 'is_favourite', 'updated_at')
+
+        # Build nodes
+        nodes = []
+        for note in notes:
+            nodes.append({
+                'id': str(note.id),
+                'title': note.title,
+                'is_favourite': note.is_favourite,
+                'incoming_count': note.incoming_links.count(),
+                'outgoing_count': note.outgoing_links.count(),
+                'tags': [tag.id for tag in note.tags.all()],
+            })
+
+        # Build edges from NoteLinks
+        links = NoteLink.objects.filter(
+            source__owner=request.user,
+            source__is_trashed=False,
+            target__is_trashed=False,
+        ).values_list('source_id', 'target_id')
+
+        edges = [
+            {'source': str(src), 'target': str(tgt)}
+            for src, tgt in links
+        ]
+
+        return Response({'nodes': nodes, 'edges': edges})
+
+
+# ---------------------------------------------------------------------------
+# Backlinks View — Notes that link TO a specific note
+# ---------------------------------------------------------------------------
+
+class BacklinksView(APIView):
+    """
+    GET /api/notes/<note_id>/backlinks/
+
+    Returns a list of notes that contain [[wikilinks]] pointing to this note.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, note_id):
+        note = get_object_or_404(
+            Note, pk=note_id, owner=request.user, is_trashed=False
         )
+        backlink_notes = Note.objects.filter(
+            outgoing_links__target=note,
+            owner=request.user,
+            is_trashed=False,
+        ).distinct().only('id', 'title', 'content', 'updated_at', 'password_hash')
+
+        results = []
+        for bl in backlink_notes:
+            if bl.password_hash:
+                preview = "This note is password protected."
+            else:
+                preview = bl.content[:150] + ('...' if len(bl.content) > 150 else '')
+                
+            results.append({
+                'id': str(bl.id),
+                'title': bl.title,
+                'preview': preview,
+                'updated_at': bl.updated_at.isoformat(),
+            })
+
+        return Response(results)
+
+
+# ---------------------------------------------------------------------------
+# Note Title Search — Autocomplete for [[wikilinks]]
+# ---------------------------------------------------------------------------
+
+class NoteTitleSearchView(APIView):
+    """
+    GET /api/notes/titles/?q=search_term
+
+    Returns a list of note titles matching the query for wikilink autocomplete.
+    Limited to 10 results for performance.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        query = request.query_params.get('q', '').strip()
+        if not query:
+            # Return all note titles (limited)
+            notes = Note.objects.filter(
+                owner=request.user,
+                is_trashed=False,
+            ).order_by('title').values_list('id', 'title')[:15]
+        else:
+            base_qs = Note.objects.filter(
+                owner=request.user,
+                is_trashed=False,
+            )
+            
+            from thefuzz import fuzz
+            search_str = query.lower()
+            scored_notes = []
+            
+            for note in base_qs:
+                title = note.title or ""
+                t_score = fuzz.partial_ratio(search_str, title.lower())
+                t_score2 = fuzz.token_set_ratio(search_str, title.lower())
+                
+                max_score = max(t_score, t_score2)
+                if max_score > 65:
+                    scored_notes.append((max_score, note.id, title))
+            
+            # Sort by score descending, then by title alphabetically
+            scored_notes.sort(key=lambda x: (-x[0], x[2]))
+            
+            notes = [(n[1], n[2]) for n in scored_notes[:10]]
+
+        return Response([
+            {'id': str(nid), 'title': title}
+            for nid, title in notes
+        ])

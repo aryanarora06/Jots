@@ -1,8 +1,19 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, X, Plus } from 'lucide-react';
+import { tapAnimation } from '../utils/motion';
 
 const WelcomeModal = ({ isOpen, onClose, onAction }) => {
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && isOpen) {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
+
     return (
         <AnimatePresence>
             {isOpen && (
@@ -16,10 +27,10 @@ const WelcomeModal = ({ isOpen, onClose, onAction }) => {
                     />
                     
                     <motion.div
-                        initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                        animate={{ scale: 1, opacity: 1, y: 0 }}
-                        exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
                         className="relative w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden"
                     >
                         {/* Header Image/Pattern area */}
@@ -38,7 +49,8 @@ const WelcomeModal = ({ isOpen, onClose, onAction }) => {
                             </p>
 
                             <div className="flex flex-col sm:flex-row gap-3">
-                                <button
+                                <motion.button
+                                    whileTap={tapAnimation}
                                     onClick={() => {
                                         onClose();
                                         onAction();
@@ -47,23 +59,25 @@ const WelcomeModal = ({ isOpen, onClose, onAction }) => {
                                 >
                                     <Plus className="w-5 h-5 mr-2 -ml-1" />
                                     Create a Note
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
+                                    whileTap={tapAnimation}
                                     onClick={onClose}
                                     className="flex-1 inline-flex items-center justify-center px-6 py-3 text-sm font-semibold rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:hover:bg-gray-700 focus:outline-none transition-all active:scale-95"
                                 >
                                     Explore First
-                                </button>
+                                </motion.button>
                             </div>
                         </div>
 
-                        <button
+                        <motion.button
+                            whileTap={tapAnimation}
                             onClick={onClose}
                             className="absolute top-4 right-4 p-2 bg-black/10 hover:bg-black/20 text-white rounded-full transition-colors"
                             title="Close"
                         >
                             <X className="w-4 h-4" />
-                        </button>
+                        </motion.button>
                     </motion.div>
                 </div>
             )}

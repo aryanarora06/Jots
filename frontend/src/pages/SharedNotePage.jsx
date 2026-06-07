@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Book, User, Plus, ArrowLeft, AlertCircle } from 'lucide-react';
 import api from '../api';
 import WordCount from '../components/WordCount';
+import { motion, AnimatePresence } from 'framer-motion';
+import { slideUpVariants, tapAnimation } from '../utils/motion';
 
 const SharedNotePage = () => {
     const { token } = useParams();
@@ -64,17 +66,23 @@ const SharedNotePage = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors">
-            <div className="sm:mx-auto sm:w-full sm:max-w-md animate-fade-in-up">
+            <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 
-                <button 
+                <motion.button 
+                    whileTap={tapAnimation}
                     onClick={() => navigate('/')}
                     className="mb-6 inline-flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors group"
                 >
                     <ArrowLeft className="w-4 h-4 mr-1.5 transform group-hover:-translate-x-1 transition-transform" />
                     Back to dashboard
-                </button>
+                </motion.button>
 
-                <div className="bg-white dark:bg-gray-900 py-8 px-6 shadow-xl shadow-gray-200/50 dark:shadow-none sm:rounded-2xl border border-gray-100 dark:border-gray-800">
+                <motion.div 
+                    variants={slideUpVariants}
+                    initial="initial"
+                    animate="animate"
+                    className="bg-white dark:bg-gray-900 py-8 px-6 shadow-xl shadow-gray-200/50 dark:shadow-none sm:rounded-2xl border border-gray-100 dark:border-gray-800"
+                >
                     <div className="flex justify-center mb-6">
                         <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-full">
                             <Book className="h-8 w-8 text-red-600 dark:text-red-400" />
@@ -86,8 +94,8 @@ const SharedNotePage = () => {
                     </h2>
 
                     {isLoading ? (
-                        <div className="flex justify-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600"></div>
+                        <div className="flex flex-col items-center justify-center py-24 text-center">
+                            <h2 className="mt-4 text-xl font-medium text-gray-900 dark:text-white">Loading note...</h2>
                         </div>
                     ) : error ? (
                         <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-100 dark:border-red-800 text-center">
@@ -110,23 +118,24 @@ const SharedNotePage = () => {
                                 </div>
                             </div>
 
-                            <button
+                            <motion.button
+                                whileTap={tapAnimation}
                                 onClick={handleAccept}
                                 disabled={isAccepting}
                                 className={`w-full flex items-center justify-center py-3 px-4 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-500 focus:outline-none transition-all active:scale-95 ${isAccepting ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
                                 {isAccepting ? (
-                                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                                    <span className="w-5 h-5 flex items-center justify-center">...</span>
                                 ) : (
                                     <>
                                         <Plus className="w-5 h-5 mr-2" />
                                         Add to my notes
                                     </>
                                 )}
-                            </button>
+                            </motion.button>
                         </div>
                     ) : null}
-                </div>
+                </motion.div>
             </div>
         </div>
     );

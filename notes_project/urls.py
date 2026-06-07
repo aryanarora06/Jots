@@ -32,6 +32,7 @@ from api.views import (
     SharedWithMeView, CopySharedNoteView, UnlockSharedNoteView, RemoveSharedNoteView,
     TrashListView, RestoreNoteView, RestoreSharedNoteView,
     PermanentDeleteNoteView, PermanentDeleteSharedNoteView, EmptyTrashView,
+    GraphView, BacklinksView, NoteTitleSearchView,
 )
 
 # ── DRF Router ──────────────────────────────────────────────────────────────
@@ -66,6 +67,11 @@ urlpatterns = [
     path("api/notes/shared-with-me/<uuid:note_id>/copy/", CopySharedNoteView.as_view(), name="copy-shared-note"),
     path("api/notes/shared-with-me/<uuid:note_id>/unlock/", UnlockSharedNoteView.as_view(), name="unlock-shared-note"),
     path("api/notes/shared-with-me/<uuid:note_id>/", RemoveSharedNoteView.as_view(), name="remove-shared-note"),
+
+    # ── Knowledge Graph & Wikilinks ──────────────────────────────────────────
+    path("api/notes/graph/", GraphView.as_view(), name="note-graph"),
+    path("api/notes/titles/", NoteTitleSearchView.as_view(), name="note-title-search"),
+    path("api/notes/<uuid:note_id>/backlinks/", BacklinksView.as_view(), name="note-backlinks"),
 
     # ── Notes API ────────────────────────────────────────────────────────────
     path("api/", include(router.urls)),

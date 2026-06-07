@@ -3,7 +3,6 @@
  * Supports Markdown (.md), HTML (.html), and PDF (via browser print).
  */
 import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
 
 const sanitizeFilename = (title) => {
     return (title || 'untitled')
@@ -35,7 +34,7 @@ const markdownToHtml = (md) => {
     // Fenced code blocks (```...```)
     html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
         const escaped = code.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<pre style="background:#1a1a2e;color:#e0e0e0;padding:16px;border-radius:8px;overflow-x:auto;font-size:14px;line-height:1.5;"><code>${escaped}</code></pre>`;
+        return `<pre style="background:#1a1a2e;color:#e0e0e0;padding:16px;overflow-x:auto;font-size:14px;line-height:1.5;"><code>${escaped}</code></pre>`;
     });
 
     // Inline code
@@ -222,5 +221,5 @@ export const exportAllAsZip = async (myNotes, sharedNotes) => {
     });
 
     const content = await zip.generateAsync({ type: "blob" });
-    saveAs(content, "Jots_Export.zip");
+    downloadBlob(content, "Jots_Export.zip");
 };

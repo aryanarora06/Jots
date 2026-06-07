@@ -131,3 +131,31 @@ class SharedNote(models.Model):
 
     class Meta:
         unique_together = ['note', 'user']
+
+
+class NoteLink(models.Model):
+    """
+    Tracks bidirectional [[wikilinks]] between notes.
+    When a user types [[Note Title]] in a note's content, we parse it
+    and create a NoteLink from the source note to the target note.
+    """
+    source = models.ForeignKey(
+        Note,
+        on_delete=models.CASCADE,
+        related_name="outgoing_links",
+        help_text="The note that contains the [[wikilink]].",
+    )
+    target = models.ForeignKey(
+        Note,
+        on_delete=models.CASCADE,
+        related_name="incoming_links",
+        help_text="The note being linked to.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['source', 'target']
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f"{self.source.title} → {self.target.title}"

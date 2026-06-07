@@ -151,6 +151,8 @@ class NoteSerializer(serializers.ModelSerializer):
     word_count = serializers.SerializerMethodField()
     is_password_protected = serializers.SerializerMethodField()
     days_remaining = serializers.SerializerMethodField()
+    backlinks_count = serializers.SerializerMethodField()
+    outgoing_links_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Note
@@ -167,10 +169,12 @@ class NoteSerializer(serializers.ModelSerializer):
             "is_trashed",
             "deleted_at",
             "days_remaining",
+            "backlinks_count",
+            "outgoing_links_count",
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "owner", "tags", "word_count", "is_password_protected", "is_trashed", "deleted_at", "days_remaining", "created_at", "updated_at")
+        read_only_fields = ("id", "owner", "tags", "word_count", "is_password_protected", "is_trashed", "deleted_at", "days_remaining", "backlinks_count", "outgoing_links_count", "created_at", "updated_at")
 
     def get_word_count(self, obj: Note) -> int:
         if obj.password_hash and not self.context.get('include_protected_content'):
@@ -186,6 +190,12 @@ class NoteSerializer(serializers.ModelSerializer):
             elapsed = (timezone.now() - obj.deleted_at).days
             return max(0, 30 - elapsed)
         return None
+
+    def get_backlinks_count(self, obj: Note) -> int:
+        return obj.incoming_links.count()
+
+    def get_outgoing_links_count(self, obj: Note) -> int:
+        return obj.outgoing_links.count()
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)

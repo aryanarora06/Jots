@@ -34,17 +34,86 @@ export const preprocessLinks = (text) => {
 };
 
 /**
- * Custom ReactMarkdown components that make links open in a new tab.
+ * Converts [[Note Title]] wikilink syntax into special markdown links.
+ * These links use a special `wikilink://` protocol that the custom
+ * markdown component intercepts to handle in-app navigation.
+ */
+export const preprocessWikilinks = (text) => {
+    if (!text) return '';
+    // Match [[Note Title]] and convert to a clickable markdown link
+    return text.replace(/\[\[([^\]]+?)\]\]/g, (match, title) => {
+        const trimmed = title.trim();
+        return `[${trimmed}](#wikilink:${encodeURIComponent(trimmed)})`;
+    });
+};
+
+/**
+ * Full preprocessing pipeline: wikilinks first, then bare URL linking.
+ */
+export const preprocessContent = (text) => {
+    return preprocessLinks(preprocessWikilinks(text));
+};
+
+/**
+ * Custom ReactMarkdown components that:
+ * 1. Handle wikilink:// protocol links as in-app navigation
+ * 2. Make regular links open in a new tab
+ * 
+ * @param {Function} onWikilinkClick - Callback when a [[wikilink]] is clicked. Receives the note title.
+ */
+export const createMarkdownComponents = (onWikilinkClick) => ({
+    a: (props) => {
+        const { node, children, href, ...restProps } = props;
+        // Handle wikilinks
+        if (href && href.startsWith('#wikilink:')) {
+            const title = decodeURIComponent(href.replace('#wikilink:', ''));
+            return (
+                <a
+                    href="#"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (onWikilinkClick) onWikilinkClick(title);
+                    }}
+                    className="text-black dark:text-white hover:text-gray-700 dark:hover:text-gray-300 font-medium no-underline hover:underline decoration-black/30 dark:decoration-white/30 underline-offset-2 cursor-pointer"
+                    title={`Open note: ${title}`}
+                    {...restProps}
+                >
+                    {children}
+                </a>
+            );
+        }
+
+        // Regular external links
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                {...restProps}
+            >
+                {children}
+            </a>
+        );
+    },
+});
+
+/**
+ * Legacy: Custom ReactMarkdown components that make links open in a new tab.
+ * Use createMarkdownComponents() instead for wikilink support.
  */
 export const markdownLinkComponents = {
-    a: ({ children, href, ...props }) => (
-        <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            {...props}
-        >
-            {children}
-        </a>
-    ),
+    a: (props) => {
+        const { node, children, href, ...restProps } = props;
+        return (
+            <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                {...restProps}
+            >
+                {children}
+            </a>
+        );
+    },
 };

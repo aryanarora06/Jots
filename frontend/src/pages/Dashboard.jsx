@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useContext, useCallback, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AuthContext } from '../AuthContext';
 import api from '../api';
@@ -8,11 +8,12 @@ import ViewNoteModal from '../components/ViewNoteModal';
 import ShareDialog from '../components/ShareDialog';
 import SelectionBar from '../components/SelectionBar';
 import WelcomeModal from '../components/WelcomeModal';
+import GraphView from '../components/GraphView';
 import { exportAsMarkdown, exportAllAsZip } from '../utils/exportNote';
 import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cardVariants, tabContentVariants } from '../utils/motion';
+import { cardVariants, tabContentVariants, dropdownVariants, tapAnimation, microSpring } from '../utils/motion';
 
 const SORT_OPTIONS = [
     { value: 'recent', label: 'Most recent', shortLabel: 'Recent' },
@@ -20,8 +21,9 @@ const SORT_OPTIONS = [
     { value: 'alphabetical', label: 'Alphabetical', shortLabel: 'A-Z' },
 ];
 
-const TAB_ORDER = { 'my-notes': 0, 'shared-with-me': 1 };
+const TAB_ORDER = { 'my-notes': 0, 'shared-with-me': 1, 'graph': 2 };
 const REFLOW_FADE_MS = 120;
+const MAX_STAGGER = 12;
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -120,15 +122,34 @@ const Dashboard = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Debounce search query
+    // Debounce search
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(searchQuery);
-
     useEffect(() => {
         const timer = setTimeout(() => {
-            setDebouncedSearchQuery(searchQuery);
+            if (debouncedSearchQuery !== searchQuery) {
+                const currentNotes = activeTab === 'shared-with-me' ? sharedNotes.map(sn => sn.note) : notes;
+                if (currentNotes.length > 0) {
+                    lockTabAreaHeight();
+                    const staggerMap = new Set();
+                    currentNotes.forEach(note => staggerMap.add(note.id));
+                    setReflowingNoteIds(staggerMap);
+                    
+                    setTimeout(() => {
+                        setDebouncedSearchQuery(searchQuery);
+                        setUnstaggeredNoteIds(staggerMap);
+                        
+                        setTimeout(() => {
+                            setReflowingNoteIds(new Set());
+                            setUnstaggeredNoteIds(new Set());
+                        }, 50);
+                    }, REFLOW_FADE_MS);
+                } else {
+                    setDebouncedSearchQuery(searchQuery);
+                }
+            }
         }, 300);
         return () => clearTimeout(timer);
-    }, [searchQuery]);
+    }, [searchQuery, debouncedSearchQuery, notes, sharedNotes, activeTab]);
 
 
     // Global keyboard shortcuts
@@ -154,7 +175,9 @@ const Dashboard = () => {
     // Fetch notes function
     const fetchNotes = useCallback(async () => {
         try {
-            setIsLoading(true);
+            if (notes.length === 0 && !debouncedSearchQuery && selectedTagFilters.length === 0) {
+                setIsLoading(true);
+            }
             const params = new URLSearchParams();
             selectedTagFilters.forEach(tagId => params.append('tag', tagId));
             if (debouncedSearchQuery.trim()) params.append('search', debouncedSearchQuery.trim());
@@ -181,7 +204,9 @@ const Dashboard = () => {
     // Fetch shared notes function
     const fetchSharedNotes = useCallback(async () => {
         try {
-            setIsLoadingShared(true);
+            if (sharedNotes.length === 0 && !debouncedSearchQuery) {
+                setIsLoadingShared(true);
+            }
             const params = new URLSearchParams();
             if (debouncedSearchQuery.trim()) params.append('search', debouncedSearchQuery.trim());
             const query = params.toString();
@@ -279,26 +304,19 @@ const Dashboard = () => {
         });
     };
 
-    const filteredNotes = sortNoteList(notes);
-    const sortedSharedNotes = [...sharedNotes].sort((a, b) => {
-        const noteA = a.note;
-        const noteB = b.note;
-
-        if (sortOrder === 'oldest') {
-            return new Date(noteA.created_at) - new Date(noteB.created_at);
-        }
-        if (sortOrder === 'alphabetical') {
-            return noteA.title.localeCompare(noteB.title, undefined, { sensitivity: 'base' });
-        }
-        return new Date(noteB.updated_at) - new Date(noteA.updated_at);
-    });
-    const filteredSharedNotes = selectedTagFilters.length > 0
-        ? sortedSharedNotes.filter(sharedNote => (
-            selectedTagFilters.every(tagId => (
-                sharedNote.note.tags?.some(tag => tag.id === tagId)
-            ))
-        ))
-        : sortedSharedNotes;
+    const filteredNotes = useMemo(() => sortNoteList(notes), [notes, sortOrder]);
+    const filteredSharedNotes = useMemo(() => {
+        const sorted = [...sharedNotes].sort((a, b) => {
+            const noteA = a.note;
+            const noteB = b.note;
+            if (sortOrder === 'oldest') return new Date(noteA.created_at) - new Date(noteB.created_at);
+            if (sortOrder === 'alphabetical') return noteA.title.localeCompare(noteB.title, undefined, { sensitivity: 'base' });
+            return new Date(noteB.updated_at) - new Date(noteA.updated_at);
+        });
+        return selectedTagFilters.length > 0
+            ? sorted.filter(sn => selectedTagFilters.every(tagId => sn.note.tags?.some(tag => tag.id === tagId)))
+            : sorted;
+    }, [sharedNotes, sortOrder, selectedTagFilters]);
 
     const updateOwnedNote = (updatedNote) => {
         setNotes(prev => prev.map(note => note.id === updatedNote.id ? updatedNote : note));
@@ -341,27 +359,119 @@ const Dashboard = () => {
         return noteList.slice(deletedIndex + 1).map(getId);
     };
 
+    const handleWikilinkClick = useCallback(async (title, noteId = null) => {
+        if (noteId) {
+            const note = notes.find(n => n.id === noteId);
+            if (note) {
+                setViewNote(note);
+                return;
+            }
+            try {
+                const res = await api.get(`/api/notes/${noteId}/`);
+                setViewNote(res.data);
+            } catch (err) {
+                console.error("Could not fetch note", err);
+            }
+            return;
+        }
+
+        const existingNote = notes.find(n => n.title.toLowerCase() === title.toLowerCase());
+        if (existingNote) {
+            setViewNote(existingNote);
+        } else {
+            setViewNote(null);
+            setCurrentNote({ title, content: '' });
+            setIsModalOpen(true);
+        }
+    }, [notes]);
+
+    const handleDailyNote = useCallback(() => {
+        const today = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const title = `${today}`;
+        const existingNote = notes.find(n => n.title === title);
+        
+        if (existingNote) {
+            setViewNote(existingNote);
+        } else {
+            setCurrentNote({ title, content: '' });
+            setIsModalOpen(true);
+        }
+    }, [notes]);
+
+    const handleSortChange = async (newSortOrder) => {
+        if (sortOrder === newSortOrder) return;
+        
+        const isShared = activeTab === 'shared-with-me';
+        const sourceList = isShared ? filteredSharedNotes.map(sn => sn.note) : filteredNotes;
+        
+        const fadingIds = sourceList.map(n => n.id);
+        setReflowingNoteIds(new Set(fadingIds));
+        await wait(REFLOW_FADE_MS);
+        
+        setSortOrder(newSortOrder);
+        setRefreshKey(prev => prev + 1);
+        
+        setTimeout(() => {
+            setReflowingNoteIds(new Set());
+            // Clear unstaggered so they stagger fade in naturally like on load
+            setUnstaggeredNoteIds(new Set());
+        }, 50);
+    };
+
     const handleBulkDelete = async () => {
         const count = selectedNoteIds.size;
         if (count === 0) return;
 
-        const isShared = activeTab === 'shared-with-me';
-        const message = isShared
-            ? `Remove ${count} shared note${count > 1 ? 's' : ''} from your view?`
-            : `Are you sure you want to delete ${count} note${count > 1 ? 's' : ''}?`;
-        if (!window.confirm(message)) return;
-
         const ids = [...selectedNoteIds];
+        const isShared = activeTab === 'shared-with-me';
+        const sourceList = isShared ? filteredSharedNotes.map(sn => sn.note) : filteredNotes;
+        
+        let firstDeletedIndex = -1;
+        for (let i = 0; i < sourceList.length; i++) {
+            if (selectedNoteIds.has(sourceList[i].id)) {
+                firstDeletedIndex = i;
+                break;
+            }
+        }
+
         try {
+            if (firstDeletedIndex >= 0) {
+                const fadingIds = sourceList.slice(firstDeletedIndex).map(n => n.id);
+                setReflowingNoteIds(new Set(fadingIds));
+                await wait(REFLOW_FADE_MS);
+            }
+
             if (isShared) {
                 await Promise.all(ids.map(id => api.delete(`/api/notes/shared-with-me/${id}/`)));
-                setSharedNotes(prev => prev.filter(sn => !ids.includes(sn.note.id)));
+                setSharedNotes(sharedNotes.filter(sn => !selectedNoteIds.has(sn.note.id)));
             } else {
                 await Promise.all(ids.map(id => api.delete(`/api/notes/${id}/`)));
-                setNotes(prev => prev.filter(n => !ids.includes(n.id)));
+                setNotes(notes.filter(n => !selectedNoteIds.has(n.id)));
             }
+            
+            setRefreshKey(prev => prev + 1);
+            
+            if (firstDeletedIndex >= 0) {
+                const affectedIds = sourceList.slice(firstDeletedIndex).filter(n => !selectedNoteIds.has(n.id)).map(n => n.id);
+                if (affectedIds.length > 0) {
+                    setUnstaggeredNoteIds(new Set(affectedIds));
+                    setTimeout(() => {
+                        setReflowingNoteIds(new Set());
+                        setTimeout(() => setUnstaggeredNoteIds(new Set()), 180);
+                    }, REFLOW_FADE_MS);
+                } else {
+                    setReflowingNoteIds(new Set());
+                    setUnstaggeredNoteIds(new Set());
+                }
+            } else {
+                setReflowingNoteIds(new Set());
+                setUnstaggeredNoteIds(new Set());
+            }
+
             setSelectedNoteIds(new Set());
         } catch (err) {
+            setReflowingNoteIds(new Set());
+            setUnstaggeredNoteIds(new Set());
             console.error('Failed to delete notes:', err);
             alert('Failed to delete some notes.');
         }
@@ -395,6 +505,7 @@ const Dashboard = () => {
                 const response = await api.post('/api/notes/', noteData);
                 setNotes([response.data, ...notes]);
             }
+            setRefreshKey(prev => prev + 1);
             setIsModalOpen(false);
             setCurrentNote(null);
         } catch (err) {
@@ -413,6 +524,7 @@ const Dashboard = () => {
             }
             await api.delete(`/api/notes/${id}/`);
             setNotes(notes.filter(n => n.id !== id));
+            setRefreshKey(prev => prev + 1);
             if (affectedIds.length > 0) {
                 setUnstaggeredNoteIds(new Set(affectedIds));
                 setTimeout(() => {
@@ -607,12 +719,31 @@ const Dashboard = () => {
     };
 
     const toggleTagFilter = (tagId) => {
-        setSelectedTagFilters(prev => 
-            prev.includes(tagId) 
-                ? prev.filter(id => id !== tagId)
-                : [...prev, tagId]
-        );
-        setRefreshKey(prev => prev + 1);
+        const currentNotes = activeTab === 'shared-with-me' ? sharedNotes.map(sn => sn.note) : notes;
+        if (currentNotes.length > 0) {
+            lockTabAreaHeight();
+            const staggerMap = new Set();
+            currentNotes.forEach(note => staggerMap.add(note.id));
+            setReflowingNoteIds(staggerMap);
+            
+            setTimeout(() => {
+                setSelectedTagFilters(prev => {
+                    if (prev.includes(tagId)) return prev.filter(t => t !== tagId);
+                    return [...prev, tagId];
+                });
+                setUnstaggeredNoteIds(staggerMap);
+                
+                setTimeout(() => {
+                    setReflowingNoteIds(new Set());
+                    setUnstaggeredNoteIds(new Set());
+                }, 50);
+            }, REFLOW_FADE_MS);
+        } else {
+            setSelectedTagFilters(prev => {
+                if (prev.includes(tagId)) return prev.filter(t => t !== tagId);
+                return [...prev, tagId];
+            });
+        }
     };
 
     const handleCreateTag = async (tagName) => {
@@ -677,36 +808,37 @@ const Dashboard = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-black transition-colors duration-200 flex flex-col font-sans">
+        <div className="min-h-screen overflow-x-hidden bg-white dark:bg-black transition-colors duration-200 flex flex-col font-sans">
             {/* Navbar */}
-            <header className="bg-gray-50 dark:bg-black sticky top-0 z-[60] transition-colors duration-200 py-3 animate-fade-in-up" style={{animationDelay: '100ms'}}>
+            <header className="bg-white dark:bg-black sticky top-0 z-[60] border-b border-gray-200 dark:border-gray-800 transition-colors duration-200 py-0">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center gap-2 sm:gap-3 h-14 bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 px-3 sm:px-4">
+                    <div className="flex items-center gap-2 sm:gap-3 h-16">
                         <button 
                             onClick={() => {
                                 setSearchQuery('');
                                 setSelectedTagFilters([]);
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="shrink-0 flex items-center hover:opacity-80 transition-opacity focus:outline-none active:scale-95 transition-transform"
+                            className="shrink-0 flex items-center hover:opacity-80 transition-opacity focus:outline-none"
                         >
-                            <span 
-                                className="text-xl sm:text-2xl font-black text-red-600 dark:text-red-500 tracking-tighter"
+                            <motion.span 
+                                whileTap={tapAnimation}
+                                className="text-xl sm:text-2xl font-semibold text-black dark:text-white tracking-tight"
                             >
-                                Jots
-                            </span>
+                                ▲ Jots
+                            </motion.span>
                         </button>
                         
-                        <div className="min-w-0 flex-1 px-2 sm:px-4">
+                        <div className="min-w-0 flex-1 px-4 sm:px-8 max-w-2xl">
                             <div className="relative w-full">
-                                <div className="absolute inset-y-0 left-0 pl-3 sm:pl-5 flex items-center pointer-events-none">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <Search className="h-4 w-4 text-gray-400" />
                                 </div>
                                 <input
                                     ref={searchInputRef}
                                     type="text"
                                     spellCheck="false"
-                                    className="block w-full pl-9 sm:pl-11 pr-12 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-full text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/40 focus:border-red-500 transition-colors sm:text-sm"
+                                    className="block w-full pl-9 pr-12 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-md text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white transition-colors"
                                     placeholder="Search notes..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -716,54 +848,74 @@ const Dashboard = () => {
                                         }
                                     }}
                                 />
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none hidden sm:flex">
-                                    <span className="text-xs text-gray-400 dark:text-gray-500 font-medium border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">Ctrl K</span>
+                                <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none hidden sm:flex">
+                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">Ctrl K</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="shrink-0 flex items-center space-x-0.5 sm:space-x-3">
-                            <button
+                        <div className="shrink-0 flex items-center space-x-1 sm:space-x-2 ml-auto">
+                            <motion.button
+                                whileTap={tapAnimation}
                                 onClick={() => exportAllAsZip(notes, sharedNotes)}
-                                className="p-2 rounded-full text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors active:scale-95"
+                                className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors"
                                 title="Download all notes as ZIP"
                             >
-                                <Download className="h-5 w-5" />
-                            </button>
-                            <button
+                                <Download className="h-4 w-4" />
+                            </motion.button>
+                            <motion.button
+                                whileTap={tapAnimation}
                                 onClick={() => setDarkMode(!darkMode)}
-                                className="p-2 rounded-full text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors active:scale-95"
+                                className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors"
                             >
-                                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                            </button>
-                            <button
+                                {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                            </motion.button>
+                            <motion.button
+                                whileTap={tapAnimation}
                                 onClick={logout}
-                                className="p-2 rounded-full text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50 hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors sm:flex sm:items-center sm:px-3 active:scale-95"
+                                className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors sm:flex sm:items-center sm:px-3"
                             >
-                                <LogOut className="h-5 w-5 sm:mr-2" />
+                                <LogOut className="h-4 w-4 sm:mr-2" />
                                 <span className="hidden sm:inline text-sm font-medium">Sign out</span>
-                            </button>
+                            </motion.button>
                         </div>
                     </div>
                 </div>
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pb-8 pt-28">
+            <main className="flex-1 w-full pb-8 flex flex-col">
                 
-                <div className="fixed left-0 right-0 top-[4.75rem] z-50 mx-auto flex min-h-[6rem] max-w-7xl min-w-0 flex-col gap-1 overflow-visible bg-gray-50/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-gray-50/80 dark:bg-black/95 dark:supports-[backdrop-filter]:bg-black/80 sm:h-14 sm:min-h-14 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-3 sm:px-6 lg:px-8">
-                    <div className="flex shrink-0 items-center space-x-5 border-b border-gray-200 dark:border-gray-800 pb-1 sm:border-b-0 sm:pb-0 sm:self-center">
+            {/* Tabs & Filters Bar - Now sticky to move with header */}
+            <div className="sticky top-16 z-[55] w-full border-b border-gray-200 dark:border-gray-800 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-black/90 dark:supports-[backdrop-filter]:bg-black/80">
+                <div className="mx-auto flex max-w-7xl min-w-0 flex-col gap-3 overflow-visible px-4 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-6 lg:px-8">
+                    <div className="flex shrink-0 items-center space-x-6 sm:self-center h-8">
                         <button
                             onClick={() => switchTab('my-notes')}
-                            className={`whitespace-nowrap text-base sm:text-lg font-bold tracking-tight transition-colors ${activeTab === 'my-notes' ? 'text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                            className={`whitespace-nowrap text-sm font-medium tracking-tight transition-colors h-full flex items-center relative ${activeTab === 'my-notes' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white'}`}
                         >
                             My Notes
+                            {activeTab === 'my-notes' && (
+                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
+                            )}
                         </button>
                         <button
                             onClick={() => switchTab('shared-with-me')}
-                            className={`whitespace-nowrap text-base sm:text-lg font-bold tracking-tight transition-colors ${activeTab === 'shared-with-me' ? 'text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                            className={`whitespace-nowrap text-sm font-medium tracking-tight transition-colors h-full flex items-center relative ${activeTab === 'shared-with-me' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white'}`}
                         >
                             Shared with me
+                            {activeTab === 'shared-with-me' && (
+                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
+                            )}
+                        </button>
+                        <button
+                            onClick={() => switchTab('graph')}
+                            className={`whitespace-nowrap text-sm font-medium tracking-tight transition-colors h-full flex items-center relative ${activeTab === 'graph' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white'}`}
+                        >
+                            Graph
+                            {activeTab === 'graph' && (
+                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
+                            )}
                         </button>
                     </div>
 
@@ -771,62 +923,61 @@ const Dashboard = () => {
 
                     <AnimatePresence mode="wait">
                         <motion.div
-                            key={activeTab}
-                            initial={{ opacity: 0 }}
+                                key={activeTab}
+                                initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.15 }}
                             className="flex min-w-0 w-full flex-nowrap items-center gap-2 sm:h-10 sm:gap-3 sm:flex-1"
                         >
                     <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar self-center">
-                        <div className="flex h-10 flex-nowrap items-center space-x-2 pl-0.5">
+                        <div className="flex h-10 flex-nowrap items-center space-x-2 pl-0.5 sm:pl-4">
                             <Filter className="w-4 h-4 shrink-0 text-gray-400" />
                             <button
                                 onClick={() => {
                                     setSelectedTagFilters([]);
                                     setRefreshKey(prev => prev + 1);
                                 }}
-                                className={`text-sm font-medium whitespace-nowrap px-3.5 py-1.5 rounded-full transition-colors border-2 ${
+                                className={`text-xs font-medium whitespace-nowrap px-3 py-1 rounded-md transition-colors border ${
                                     selectedTagFilters.length === 0
-                                    ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 border-gray-900 dark:border-white'
-                                    : 'bg-white text-gray-600 border-transparent hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800'
+                                    ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-black dark:border-gray-800 dark:text-gray-400 dark:hover:border-gray-700'
                                 }`}
                             >
                                 All
                             </button>
-                            {(activeTab === 'my-notes' ? tags : sharedTags).map(tag => (
+                            {(activeTab === 'shared-with-me' ? sharedTags : tags).map(tag => (
                                 <div key={tag.id} className="relative group inline-flex h-10 shrink-0 items-center">
                                     <button
                                         onClick={() => toggleTagFilter(tag.id)}
-                                        className={`text-sm font-medium whitespace-nowrap pl-3.5 pr-8 py-1.5 rounded-full transition-colors border-2 ${
-                                            tag.color || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                                        } ${
-                                                selectedTagFilters.includes(tag.id)
-                                                ? 'border-current opacity-100'
-                                                : 'border-transparent opacity-80 hover:opacity-100'
+                                        className={`text-xs font-medium whitespace-nowrap pl-3 pr-7 py-1 rounded-md transition-colors border ${
+                                            selectedTagFilters.includes(tag.id)
+                                            ? 'bg-gray-100 text-black border-gray-300 dark:bg-gray-800 dark:text-white dark:border-gray-600'
+                                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-black dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
                                         }`}
                                     >
                                         {tag.name}
                                     </button>
                                     <button
                                         onClick={(e) => handleDeleteTag(tag.id, e)}
-                                        className="absolute right-1.5 w-5 h-5 rounded-full flex items-center justify-center transition-colors bg-black/5 dark:bg-white/10 group-hover:bg-black/10 dark:group-hover:bg-white/20"
+                                        className="absolute right-1.5 w-4 h-4 rounded-sm flex items-center justify-center transition-colors hover:bg-black/10 dark:hover:bg-white/20"
                                         title="Delete tag"
                                     >
-                                        <X className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-current" />
+                                        <X className="w-3 h-3 text-gray-500 dark:text-gray-400 group-hover:text-black dark:group-hover:text-white" />
                                     </button>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <div className="w-px self-stretch shrink-0 bg-gray-200 dark:bg-gray-800" aria-hidden="true" />
+                    <div className="hidden sm:block w-px self-stretch shrink-0 bg-gray-200 dark:bg-gray-800" aria-hidden="true" />
 
-                    <div className={`relative shrink-0 self-center ${activeTab === 'shared-with-me' ? 'ml-auto' : ''}`} ref={sortMenuRef}>
+                    {activeTab !== 'graph' && (
+                        <div className={`relative shrink-0 self-center ${activeTab === 'shared-with-me' ? 'ml-auto' : ''}`} ref={sortMenuRef}>
                         <button
                             type="button"
                             onClick={() => setSortMenuOpen((open) => !open)}
-                            className="h-9 w-[6.25rem] overflow-hidden rounded-[1.125rem] border border-gray-200 bg-white pl-9 pr-7 text-center text-sm font-semibold text-gray-700 transition-all hover:border-gray-300 hover:bg-gray-50 focus:border-red-500 focus:outline-none dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-700 dark:hover:bg-gray-800 sm:w-[9.75rem] sm:pr-8"
+                            className="h-8 w-[6.25rem] overflow-hidden rounded-md border border-gray-200 bg-white pl-8 pr-7 text-center text-xs font-medium text-gray-700 transition-all hover:border-gray-300 hover:bg-gray-50 focus:border-black focus:ring-1 focus:ring-black focus:outline-none dark:border-gray-800 dark:bg-black dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-900 dark:focus:border-white dark:focus:ring-white sm:w-[9.75rem] sm:pr-8"
                             aria-label="Sort notes"
                             aria-expanded={sortMenuOpen}
                             aria-haspopup="listbox"
@@ -840,11 +991,17 @@ const Dashboard = () => {
                                 </span>
                             </span>
                         </button>
-                        <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-red-500 dark:text-red-400" />
-                        <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
+                        <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                        <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
+                        <AnimatePresence>
                         {sortMenuOpen && (
-                            <div
-                                className="absolute right-0 top-[calc(100%+0.25rem)] z-40 w-[9.75rem] overflow-hidden rounded-[1.125rem] border border-gray-200 bg-white shadow-sm shadow-gray-200/60 dark:border-gray-800 dark:bg-gray-900 dark:shadow-black/20"
+                            <motion.div
+                                variants={dropdownVariants}
+                                initial="initial"
+                                animate="animate"
+                                exit="exit"
+                                style={{ originY: 0 }}
+                                className="absolute right-0 top-[calc(100%+0.25rem)] z-40 w-[9.75rem] overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-black"
                                 role="listbox"
                                 aria-label="Sort options"
                             >
@@ -855,52 +1012,67 @@ const Dashboard = () => {
                                         role="option"
                                         aria-selected={sortOrder === option.value}
                                         onClick={() => {
-                                            if (sortOrder !== option.value) {
-                                                setSortOrder(option.value);
-                                                setRefreshKey(prev => prev + 1);
-                                            }
+                                            handleSortChange(option.value);
                                             setSortMenuOpen(false);
                                         }}
-                                        className={`block w-full px-3 py-2 text-center text-sm font-medium transition-colors ${
+                                        className={`block w-full px-3 py-2 text-left text-xs font-medium transition-colors ${
                                             sortOrder === option.value
-                                                ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                                                : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800'
+                                                ? 'bg-gray-100 text-black dark:bg-gray-800 dark:text-white'
+                                                : 'text-gray-600 hover:bg-gray-50 hover:text-black dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white'
                                         }`}
                                     >
                                         {option.label}
                                     </button>
                                 ))}
-                            </div>
+                            </motion.div>
                         )}
+                        </AnimatePresence>
                     </div>
+                    )}
 
-                    {activeTab === 'my-notes' && (
-                        <button
-                            onClick={openCreateModal}
-                            className="shrink-0 self-center inline-flex items-center whitespace-nowrap px-3 py-2 text-sm font-semibold rounded-lg text-white bg-red-600 hover:bg-red-500 focus:outline-none transition-all active:scale-95 sm:px-4 group relative"
-                        >
-                            <Plus className="h-4 w-4 mr-1.5 sm:mr-2" />
-                            New Note
-                            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-800 text-white text-xs px-2 py-1 rounded pointer-events-none whitespace-nowrap">
-                                Alt+N
-                            </div>
-                        </button>
+                    {activeTab !== 'shared-with-me' && (
+                        <div className={`flex shrink-0 self-center items-center gap-2 ${activeTab === 'graph' ? 'ml-auto' : ''}`}>
+                            <motion.button
+                                whileTap={tapAnimation}
+                                onClick={handleDailyNote}
+                                className="inline-flex h-8 items-center px-3 text-xs font-medium rounded-md text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-black dark:text-gray-300 dark:bg-black dark:border-gray-800 dark:hover:bg-gray-900 dark:hover:text-white focus:outline-none transition-all group relative"
+                            >
+                                <Sun className="h-3.5 w-3.5 mr-1.5" />
+                                Daily Note
+                            </motion.button>
+                            <motion.button
+                                whileTap={tapAnimation}
+                                onClick={openCreateModal}
+                                className="inline-flex h-8 items-center px-3 text-xs font-medium rounded-md text-white bg-black hover:bg-gray-800 focus:outline-none transition-all dark:bg-white dark:text-black dark:hover:bg-gray-200 sm:px-4 group relative"
+                            >
+                                <Plus className="h-3.5 w-3.5 mr-1.5 sm:mr-2" />
+                                New Note
+                                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black dark:bg-white dark:text-black text-white text-[10px] px-2 py-1 rounded-sm pointer-events-none whitespace-nowrap">
+                                    Alt+N
+                                </div>
+                            </motion.button>
+                        </div>
                     )}
                         </motion.div>
                     </AnimatePresence>
                 </div>
+            </div>
 
+            {/* Tab Content Area */}
+            <div className="w-full">
                 {error && (
-                    <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 p-4 mb-6 rounded-r-xl animate-fade-in-up">
-                        <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+                        <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 p-4 mb-6 mt-6 rounded-r-md animate-fade-in-up">
+                            <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+                        </div>
                     </div>
                 )}
 
-                <div ref={tabAreaRef} className="relative overflow-x-hidden">
+                <div ref={tabAreaRef} className="relative overflow-hidden">
                 <AnimatePresence initial={false} mode="wait" custom={tabDirection}>
                     {activeTab === 'my-notes' && (
                         <motion.div
-                            key={`my-notes-${refreshKey}`}
+                            key="my-notes"
                             custom={tabDirection}
                             variants={tabContentVariants}
                             initial="initial"
@@ -909,15 +1081,15 @@ const Dashboard = () => {
                             onAnimationComplete={(definition) => {
                                 if (definition === 'animate') unlockTabAreaHeight();
                             }}
+                            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6"
                         >
                             {isLoading ? (
                                 <div className="flex justify-center items-center h-64">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600 dark:border-red-500"></div>
                                 </div>
                             ) : filteredNotes.length > 0 ? (
                                 <>
-                                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-1">
-                                        <AnimatePresence mode="popLayout">
+                                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-1 relative">
+                                        <AnimatePresence>
                                             {filteredNotes.map((note, idx) => (
                                                 <motion.div
                                                     key={note.id}
@@ -929,21 +1101,24 @@ const Dashboard = () => {
                                                             : 'animate'
                                                     }
                                                     exit="exit"
-                                                    custom={unstaggeredNoteIds.has(note.id) ? { delay: false } : idx}
+                                                    custom={unstaggeredNoteIds.has(note.id) ? { delay: false } : Math.min(idx, MAX_STAGGER)}
                                                 >
                                                     <NoteCard 
                                                         note={note} 
                                                         onEdit={openEditModal}
                                                         onDelete={handleDeleteNote}
                                                         onTagClick={toggleTagFilter}
-                                                        onView={(note) => setViewNote(note)}
-                                                        onShare={(note) => setShareNoteInfo(note)}
+                                                        onView={setViewNote}
+                                                        onShare={setShareNoteInfo}
                                                         onDuplicate={handleDuplicateNote}
                                                         onCopyContent={handleCopyContent}
                                                         onToggleFavourite={handleToggleFavourite}
+                                                        onSetPassword={handleSetNotePassword}
+                                                        onRemovePassword={handleRemoveNotePassword}
                                                         isSelected={selectedNoteIds.has(note.id)}
                                                         onSelectToggle={toggleNoteSelection}
                                                         hasSelection={selectedNoteIds.size > 0}
+                                                        onWikilinkClick={handleWikilinkClick}
                                                     />
                                                 </motion.div>
                                             ))}
@@ -953,7 +1128,8 @@ const Dashboard = () => {
                                     {nextPage && (
                                         <div ref={loadMoreRef} className="flex justify-center mt-12 py-4">
                                             {isFetchingNextPage ? (
-                                                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-red-600 dark:border-red-500"></div>
+                                                <div className="col-span-full flex justify-center py-8">
+                                                </div>
                                             ) : (
                                                 <span className="text-gray-600 dark:text-gray-300 text-sm font-medium">Scroll for more...</span>
                                             )}
@@ -974,13 +1150,14 @@ const Dashboard = () => {
                                     </p>
                                     {!(searchQuery || selectedTagFilters.length > 0) && (
                                         <div className="mt-8">
-                                            <button
+                                            <motion.button
+                                                whileTap={tapAnimation}
                                                 onClick={openCreateModal}
-                                                className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-lg text-red-700 bg-red-50 hover:bg-red-100 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 focus:outline-none transition-all active:scale-95"
+                                                className="inline-flex items-center px-4 py-2 text-sm font-semibold rounded-md text-white bg-black hover:bg-gray-800 dark:text-black dark:bg-white dark:hover:bg-gray-200 focus:outline-none transition-all"
                                             >
                                                 <Plus className="h-4 w-4 mr-2" />
                                                 New Note
-                                            </button>
+                                            </motion.button>
                                         </div>
                                     )}
                                 </motion.div>
@@ -990,7 +1167,7 @@ const Dashboard = () => {
 
                     {activeTab === 'shared-with-me' && (
                         <motion.div
-                            key={`shared-with-me-${refreshKey}`}
+                            key="shared-with-me"
                             custom={tabDirection}
                             variants={tabContentVariants}
                             initial="initial"
@@ -999,14 +1176,14 @@ const Dashboard = () => {
                             onAnimationComplete={(definition) => {
                                 if (definition === 'animate') unlockTabAreaHeight();
                             }}
+                            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6"
                         >
                             {isLoadingShared ? (
                                 <div className="flex justify-center items-center h-64">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-600 dark:border-red-500"></div>
                                 </div>
                             ) : filteredSharedNotes.length > 0 ? (
                                 <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-1">
-                                    <AnimatePresence mode="popLayout">
+                                    <AnimatePresence>
                                         {filteredSharedNotes.map((sn, idx) => (
                                             <motion.div
                                                 key={sn.note.id}
@@ -1018,7 +1195,7 @@ const Dashboard = () => {
                                                         : 'animate'
                                                 }
                                                 exit="exit"
-                                                custom={unstaggeredNoteIds.has(sn.note.id) ? { delay: false } : idx}
+                                                custom={unstaggeredNoteIds.has(sn.note.id) ? { delay: false } : Math.min(idx, MAX_STAGGER)}
                                             >
                                                 <NoteCard 
                                                     note={sn.note} 
@@ -1031,6 +1208,7 @@ const Dashboard = () => {
                                                     isSelected={selectedNoteIds.has(sn.note.id)}
                                                     onSelectToggle={toggleNoteSelection}
                                                     hasSelection={selectedNoteIds.size > 0}
+                                                    onWikilinkClick={handleWikilinkClick}
                                                 />
                                             </motion.div>
                                         ))}
@@ -1054,9 +1232,31 @@ const Dashboard = () => {
                             )}
                         </motion.div>
                     )}
+
+                    {activeTab === 'graph' && (
+                        <motion.div
+                            key="graph"
+                            custom={tabDirection}
+                            variants={tabContentVariants}
+                            initial="initial"
+                            animate="animate"
+                            exit="exit"
+                            onAnimationComplete={(definition) => {
+                                if (definition === 'animate') unlockTabAreaHeight();
+                            }}
+                            className="mx-auto w-full px-8 sm:px-12 lg:px-24 pt-4 sm:pt-6"
+                        >
+                            <GraphView 
+                                darkMode={darkMode} 
+                                onNoteClick={(id) => handleWikilinkClick(null, id)}
+                                selectedTagFilters={selectedTagFilters}
+                                refreshKey={refreshKey}
+                            />
+                        </motion.div>
+                    )}
                 </AnimatePresence>
                 </div>
-
+            </div>
             </main>
 
             <NoteModal 
@@ -1085,6 +1285,7 @@ const Dashboard = () => {
                     handleRemoveSharedNote(viewNote.id);
                     setViewNote(null);
                 }}
+                onWikilinkClick={handleWikilinkClick}
             />
 
             <ShareDialog

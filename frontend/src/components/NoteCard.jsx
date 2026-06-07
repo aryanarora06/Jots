@@ -1,10 +1,12 @@
 import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Copy, Edit2, Lock, Trash2, User, Share2, Files, ClipboardCopy, Check, Star, Download } from 'lucide-react';
+import { Copy, Edit2, Lock, Trash2, User, Share2, Files, ClipboardCopy, Check, Star, Download, KeyRound, ShieldOff, FileText, FileCode, FileType } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { preprocessLinks, markdownLinkComponents } from '../utils/markdownUtils.jsx';
+import { preprocessContent, createMarkdownComponents } from '../utils/markdownUtils.jsx';
+import { exportAsMarkdown, exportAsHtml, exportAsPdf } from '../utils/exportNote.js';
+import { dropdownVariants, tapAnimation, microSpring } from '../utils/motion';
 import WordCount from './WordCount';
 
 const formatDate = (dateString) => {
@@ -12,10 +14,22 @@ const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString(undefined, options);
 };
 
-const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerName, onShare, onCopy, onDuplicate, onCopyContent, isSelected, onSelectToggle, hasSelection, onToggleFavourite, onDownload }) => {
+const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerName, onShare, onCopy, onDuplicate, onCopyContent, isSelected, onSelectToggle, hasSelection, onToggleFavourite, onSetPassword, onRemovePassword, onWikilinkClick }) => {
     const isLocked = note.is_password_protected;
     const [isVisible, setIsVisible] = useState(false);
+    const [showExportMenu, setShowExportMenu] = useState(false);
     const cardRef = useRef(null);
+    const exportMenuRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) {
+                setShowExportMenu(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     // Lazy render markdown only when card is visible
     useEffect(() => {
@@ -79,22 +93,23 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
         <motion.div 
             ref={cardRef}
             onClick={handleView}
-            whileHover={{ y: -3, transition: { duration: 0.22, ease: 'easeOut' } }}
-            className={`group relative bg-white dark:bg-gray-900 rounded-2xl border overflow-hidden hover:shadow-lg hover:shadow-gray-200/50 dark:hover:shadow-black/20 flex flex-col h-[280px] cursor-pointer ${
+            whileHover={{ y: -2 }}
+            whileTap={tapAnimation}
+            className={`group relative bg-white dark:bg-black rounded-lg border overflow-hidden transition-colors flex flex-col h-[280px] cursor-pointer ${
                 isSelected
-                    ? 'border-red-500 dark:border-red-500 ring-2 ring-red-500/30'
-                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700'
+                    ? 'border-black dark:border-white ring-1 ring-black dark:ring-white'
+                    : 'border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600'
             }`}
         >
             {onSelectToggle && (
                 <motion.button
                     onClick={handleSelectToggle}
-                    whileTap={{ scale: 0.85 }}
-                    className={`absolute top-3 right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 transition-colors duration-200 ${
+                    whileTap={tapAnimation}
+                    className={`absolute top-3 right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border transition-colors duration-200 ${
                         isSelected
-                            ? 'border-red-600 bg-white text-black dark:bg-red-600 dark:text-white'
-                            : `border-gray-300 dark:border-gray-600 bg-white/90 dark:bg-gray-900/90 text-transparent hover:border-red-400 dark:hover:border-red-500 ${
-                                hasSelection ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            ? 'border-black bg-black text-white dark:bg-white dark:border-white dark:text-black'
+                            : `border-gray-300 dark:border-gray-600 bg-white/90 dark:bg-black/90 text-transparent hover:border-gray-500 dark:hover:border-gray-400 ${
+                                hasSelection ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
                             }`
                     } ${isSelected ? 'opacity-100' : ''}`}
                     title={isSelected ? 'Deselect note' : 'Select note'}
@@ -104,10 +119,10 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                         {isSelected && (
                             <motion.span
                                 key="check"
-                                initial={{ scale: 0, opacity: 0 }}
-                                animate={{ scale: 1, opacity: 1 }}
-                                exit={{ scale: 0, opacity: 0 }}
-                                transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={microSpring}
                             >
                                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
                             </motion.span>
@@ -119,7 +134,8 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                 <div className="flex justify-between items-start mb-1 pr-7">
                     <div className="flex items-center flex-1 min-w-0">
                         {!isShared && (
-                            <button
+                            <motion.button
+                                whileTap={tapAnimation}
                                 onClick={(e) => {
                                     e.stopPropagation();
                                     if (onToggleFavourite) onToggleFavourite(note);
@@ -130,13 +146,13 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                                 <Star 
                                     className={`h-4 w-4 transition-colors ${
                                         note.is_favourite 
-                                            ? 'fill-yellow-400 text-yellow-400 dark:fill-yellow-500 dark:text-yellow-500' 
-                                            : 'text-gray-300 dark:text-gray-600 hover:text-yellow-400 dark:hover:text-yellow-500'
+                                            ? 'fill-black text-black dark:fill-white dark:text-white' 
+                                            : 'text-gray-300 dark:text-gray-600 hover:text-gray-900 dark:hover:text-gray-100'
                                     }`} 
                                 />
-                            </button>
+                            </motion.button>
                         )}
-                        <h3 className="text-base font-semibold text-gray-900 dark:text-white line-clamp-1 tracking-tight">{note.title}</h3>
+                        <h3 className="text-base font-semibold text-black dark:text-white line-clamp-1 tracking-tight">{note.title}</h3>
                     </div>
                     {note.is_password_protected && (
                         <Lock className="ml-2 mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
@@ -160,8 +176,9 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                                     e.stopPropagation();
                                     handleTagClick(tag.id);
                                 }}
-                                className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-[box-shadow,filter] hover:brightness-95 dark:hover:brightness-110 hover:shadow-sm ${tag.color || 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'}`}
-                            >                                {tag.name}
+                                className="text-[11px] px-2 py-0.5 rounded-md font-medium transition-colors bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-transparent"
+                            >
+                                {tag.name}
                             </button>
                         ))}
                     </div>
@@ -182,107 +199,173 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                         }}
                     >
                         {isVisible ? (
-                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={markdownLinkComponents}>
-                                {preprocessLinks(note.content)}
+                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={createMarkdownComponents(onWikilinkClick)}>
+                                {preprocessContent(note.content)}
                             </ReactMarkdown>
-                        ) : (
-                            <div className="text-gray-400 dark:text-gray-500">Loading preview...</div>
-                        )}
+                        ) : null}
                     </div>
                 )}
             </div>
             
-            <div className="px-5 py-3.5 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between mt-auto">
+            <div className="px-5 py-3.5 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 mt-auto">
                 <div className="flex items-center gap-2">
-                    <div className="text-xs text-gray-600 dark:text-gray-400 font-medium">
+                    <div className="text-xs text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
                         {formatDate(note.updated_at)}
                     </div>
                     <span className="text-xs text-gray-300 dark:text-gray-600" aria-hidden="true">|</span>
                     <WordCount note={note} />
                 </div>
-                <div className="flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="flex flex-nowrap overflow-x-auto gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 scrollbar-hide">
                     {isShared && onCopy && !note.is_password_protected && (
-                        <button
+                        <motion.button
+                            whileTap={tapAnimation}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleCopy();
                             }}
-                            className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full transition-colors"
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Copy to my notes"
                         >
                             <Copy className="w-3.5 h-3.5" />
-                        </button>
+                        </motion.button>
                     )}
                     {!isShared && onDuplicate && (
-                        <button
+                        <motion.button
+                            whileTap={tapAnimation}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleDuplicate();
                             }}
-                            className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full transition-colors"
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Duplicate note"
                         >
                             <Files className="w-3.5 h-3.5" />
-                        </button>
+                        </motion.button>
                     )}
                     {onCopyContent && !note.is_password_protected && (
-                        <button
+                        <motion.button
+                            whileTap={tapAnimation}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleCopyContent();
                             }}
-                            className="p-1.5 text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-full transition-colors"
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Copy content to clipboard"
                         >
                             <ClipboardCopy className="w-3.5 h-3.5" />
-                        </button>
+                        </motion.button>
                     )}
                     {!isShared && onShare && (
-                        <button
+                        <motion.button
+                            whileTap={tapAnimation}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleShare();
                             }}
-                            className="p-1.5 text-green-500 dark:text-green-400 hover:text-green-600 dark:hover:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-full transition-colors"
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Share note"
                         >
                             <Share2 className="w-3.5 h-3.5" />
-                        </button>
+                        </motion.button>
                     )}
-                    {onDownload && !note.is_password_protected && (
-                        <button
+                    {!isShared && onSetPassword && !note.is_password_protected && (
+                        <motion.button
+                            whileTap={tapAnimation}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onDownload();
+                                onSetPassword(note);
                             }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
-                            title="Download markdown"
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            title="Add password protection"
                         >
-                            <Download className="w-3.5 h-3.5" />
-                        </button>
+                            <KeyRound className="w-3.5 h-3.5" />
+                        </motion.button>
+                    )}
+                    {!isShared && onRemovePassword && note.is_password_protected && (
+                        <motion.button
+                            whileTap={tapAnimation}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onRemovePassword(note);
+                            }}
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            title="Remove password protection"
+                        >
+                            <ShieldOff className="w-3.5 h-3.5" />
+                        </motion.button>
+                    )}
+                    {!isLocked && (
+                        <div className="relative" ref={exportMenuRef}>
+                            <motion.button
+                                whileTap={tapAnimation}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowExportMenu(prev => !prev);
+                                }}
+                                className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                                title="Export note"
+                            >
+                                <Download className="w-3.5 h-3.5" />
+                            </motion.button>
+                            <AnimatePresence>
+                            {showExportMenu && (
+                                <motion.div
+                                    variants={dropdownVariants}
+                                    initial="initial"
+                                    animate="animate"
+                                    exit="exit"
+                                    className="absolute right-0 bottom-full mb-1 z-50 w-44 overflow-hidden rounded-none border border-gray-200 dark:border-gray-800 bg-white dark:bg-black shadow-lg"
+                                >
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); exportAsMarkdown(note); setShowExportMenu(false); }}
+                                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                        <FileText className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                                        Markdown
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); exportAsHtml(note); setShowExportMenu(false); }}
+                                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                        <FileCode className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                                        HTML
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); exportAsPdf(note); setShowExportMenu(false); }}
+                                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                        <FileType className="w-4 h-4 text-gray-400 dark:text-gray-500" />
+                                        PDF
+                                    </button>
+                                </motion.div>
+                            )}
+                            </AnimatePresence>
+                        </div>
                     )}
                     {!isShared && !isLocked && (
-                        <button
+                        <motion.button
+                            whileTap={tapAnimation}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleEdit();
                             }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors"
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Edit note"
                         >
                             <Edit2 className="w-3.5 h-3.5" />
-                        </button>
+                        </motion.button>
                     )}
-                    <button
+                    <motion.button
+                        whileTap={tapAnimation}
                         onClick={(e) => {
                             e.stopPropagation();
                             handleDelete();
                         }}
-                        className="p-1.5 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
                         title={isShared ? "Remove shared note" : "Delete note"}
                     >
                         <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    </motion.button>
                 </div>
             </div>
         </motion.div>

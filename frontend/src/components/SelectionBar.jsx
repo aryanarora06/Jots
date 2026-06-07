@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, Download } from 'lucide-react';
-import { selectionBarVariants } from '../utils/motion';
+import { slideUpVariants, tapAnimation, microSpring } from '../utils/motion';
 
 const SelectionBar = ({ count, onDelete, onDownload, isShared }) => {
     return (
@@ -9,17 +9,18 @@ const SelectionBar = ({ count, onDelete, onDownload, isShared }) => {
             {count > 0 && (
                 <motion.div
                     key="selection-bar"
-                    variants={selectionBarVariants}
+                    variants={slideUpVariants}
                     initial="initial"
                     animate="animate"
                     exit="exit"
                     className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50"
                 >
-                    <div className="flex items-center gap-1 pl-5 pr-2 py-2 rounded-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl shadow-gray-300/40 dark:shadow-black/50">
+                    <div className="flex items-center gap-1 pl-4 pr-1.5 py-1.5 rounded-md bg-white dark:bg-black border border-gray-200 dark:border-gray-800 shadow-2xl shadow-black/10 dark:shadow-black/60">
                         <motion.span
                             key={count}
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.15 }}
                             className="text-sm font-semibold text-gray-700 dark:text-gray-200 whitespace-nowrap mr-2"
                         >
                             {count} selected
@@ -27,21 +28,26 @@ const SelectionBar = ({ count, onDelete, onDownload, isShared }) => {
                         <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 mx-1" />
                         <motion.button
                             onClick={onDownload}
-                            whileHover={{ scale: 1.08 }}
-                            whileTap={{ scale: 0.92 }}
-                            className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                            whileTap={tapAnimation}
+                            className="p-2 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Download selected notes"
                         >
-                            <Download className="w-5 h-5" />
+                            <Download className="w-4 h-4" />
                         </motion.button>
                         <motion.button
-                            onClick={onDelete}
-                            whileHover={{ scale: 1.08 }}
-                            whileTap={{ scale: 0.92 }}
-                            className="p-2.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-full transition-colors"
+                            onClick={() => {
+                                const message = isShared
+                                    ? `Remove ${count} shared note${count > 1 ? 's' : ''} from your view?`
+                                    : `Are you sure you want to delete ${count} note${count > 1 ? 's' : ''}?`;
+                                if (window.confirm(message)) {
+                                    onDelete();
+                                }
+                            }}
+                            whileTap={tapAnimation}
+                            className="p-2 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
                             title={isShared ? 'Remove selected notes' : 'Delete selected notes'}
                         >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4" />
                         </motion.button>
                     </div>
                 </motion.div>
