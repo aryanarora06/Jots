@@ -91,12 +91,12 @@ const Login = () => {
                                 Signing in...
                             </div>
                         ) : (
-                            <div className="w-full flex justify-center google-btn-wrapper">
+                            <div className="w-full flex justify-center">
                                 <GoogleLogin
                                     onSuccess={handleGoogleSuccess}
                                     onError={handleGoogleError}
                                     useOneTap
-                                    shape="pill"
+                                    shape="rectangular"
                                     size="large"
                                     text="continue_with"
                                     theme="filled_black"
