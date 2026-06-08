@@ -22,8 +22,14 @@ import { cardVariants, tabContentVariants, dropdownVariants, tapAnimation } from
 const SORT_OPTIONS = [
     { value: 'recent', label: 'Most recent', shortLabel: 'Recent' },
     { value: 'oldest', label: 'Oldest', shortLabel: 'Oldest' },
-    { value: 'alphabetical', label: 'Alphabetical', shortLabel: 'A-Z' },
+    { value: 'alphabetical', label: 'A-Z', shortLabel: 'A-Z' },
 ];
+
+const fadeVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { duration: 0.4 } },
+    exit: { opacity: 0, transition: { duration: 0.3 } }
+};
 
 const TAB_ORDER = { 'my-notes': 0, 'shared-with-me': 1, 'graph': 2 };
 const REFLOW_FADE_MS = 120;
@@ -1295,12 +1301,12 @@ const Dashboard = () => {
                             }}
                             className="max-w-7xl mx-auto px-4 lg:px-8 pt-6"
                         >
-                            <AnimatePresence mode="wait">
+                            <AnimatePresence mode="wait" initial={true}>
                             {isLoading ? (
-                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex justify-center items-center h-64">
+                                <motion.div key="loading" variants={fadeVariants} initial="hidden" animate="visible" exit="exit" className="flex justify-center items-center h-64">
                                 </motion.div>
                             ) : filteredNotes.length > 0 ? (
-                                <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                                <motion.div key="content" variants={fadeVariants} initial="hidden" animate="visible" exit="exit">
                                     <motion.div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1 relative">
                                         <AnimatePresence mode="wait">
                                             {filteredNotes.map((note, idx) => (
@@ -1352,9 +1358,10 @@ const Dashboard = () => {
                             ) : (
                                 <motion.div
                                     key="empty"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    transition={{ duration: 0.25 }}
+                                    variants={fadeVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
                                     className="text-center py-24 px-6"
                                 >
                                     <Book className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-700 mb-4" />
@@ -1393,12 +1400,12 @@ const Dashboard = () => {
                             }}
                             className="max-w-7xl mx-auto px-4 lg:px-8 pt-6"
                         >
-                            <AnimatePresence mode="wait">
+                            <AnimatePresence mode="wait" initial={true}>
                             {isLoadingShared ? (
-                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex justify-center items-center h-64">
+                                <motion.div key="loading" variants={fadeVariants} initial="hidden" animate="visible" exit="exit" className="flex justify-center items-center h-64">
                                 </motion.div>
                             ) : filteredSharedNotes.length > 0 ? (
-                                <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1">
+                                <motion.div key="content" variants={fadeVariants} initial="hidden" animate="visible" exit="exit" className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1">
                                     <AnimatePresence mode="wait">
                                         {filteredSharedNotes.map((sn, idx) => (
                                             <motion.div
@@ -1435,6 +1442,7 @@ const Dashboard = () => {
                                     key="empty"
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
                                     transition={{ duration: 0.25 }}
                                     className="text-center py-24 px-6"
                                 >
