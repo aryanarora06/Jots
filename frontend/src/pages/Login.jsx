@@ -91,7 +91,7 @@ const Login = () => {
                                 Signing in...
                             </div>
                         ) : (
-                            <div className="w-full flex justify-center">
+                            <div className="w-full flex justify-center overflow-hidden rounded-full">
                                 <GoogleLogin
                                     onSuccess={handleGoogleSuccess}
                                     onError={handleGoogleError}
@@ -99,6 +99,7 @@ const Login = () => {
                                     shape="pill"
                                     size="large"
                                     text="continue_with"
+                                    theme="filled_black"
                                 />
                             </div>
                         )}
