@@ -387,3 +387,17 @@ button.mdxeditor-select-trigger:hover {
     background-color: #1f2937 !important;
     color: #f9fafb !important;
 }
+
+/* Force Google Login iframe to clip its own white corners */
+.google-btn-wrapper {
+    border-radius: 9999px !important;
+    overflow: hidden !important;
+    /* This height matches the Google Button size="large" perfectly */
+    height: 40px !important; 
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.google-btn-wrapper iframe {
+    border-radius: 9999px !important;
+}

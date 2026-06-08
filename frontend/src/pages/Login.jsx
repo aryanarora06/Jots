@@ -91,7 +91,7 @@ const Login = () => {
                                 Signing in...
                             </div>
                         ) : (
-                            <div className="w-full flex justify-center overflow-hidden rounded-full">
+                            <div className="w-full flex justify-center google-btn-wrapper">
                                 <GoogleLogin
                                     onSuccess={handleGoogleSuccess}
                                     onError={handleGoogleError}
