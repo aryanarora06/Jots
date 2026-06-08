@@ -8,9 +8,10 @@ import ViewNoteModal from '../components/ViewNoteModal';
 import ShareDialog from '../components/ShareDialog';
 import SelectionBar from '../components/SelectionBar';
 import WelcomeModal from '../components/WelcomeModal';
+import HelpModal from '../components/HelpModal';
 import GraphView from '../components/GraphView';
 import { exportAsMarkdown, exportAllAsZip } from '../utils/exportNote';
-import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download } from 'lucide-react';
+import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download, HelpCircle } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, tabContentVariants, dropdownVariants, tapAnimation, microSpring } from '../utils/motion';
@@ -28,7 +29,7 @@ const MAX_STAGGER = 12;
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 const Dashboard = () => {
-    const { logout } = useContext(AuthContext);
+    const { logout, user } = useContext(AuthContext);
     const location = useLocation();
     
     // Theme state
@@ -39,6 +40,7 @@ const Dashboard = () => {
 
     // Welcome Popup state
     const [showWelcome, setShowWelcome] = useState(false);
+    const [showHelp, setShowHelp] = useState(false);
 
     useEffect(() => {
         if (localStorage.getItem('showWelcomePopup') === 'true') {
@@ -61,6 +63,9 @@ const Dashboard = () => {
     const [sortMenuOpen, setSortMenuOpen] = useState(false);
     const sortMenuRef = useRef(null);
     const searchInputRef = useRef(null);
+    
+    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+    const profileMenuRef = useRef(null);
 
     // General state
     const [searchQuery, setSearchQuery] = useState('');
@@ -117,9 +122,22 @@ const Dashboard = () => {
             if (sortMenuRef.current && !sortMenuRef.current.contains(e.target)) {
                 setSortMenuOpen(false);
             }
+            if (profileMenuRef.current && !profileMenuRef.current.contains(e.target)) {
+                setProfileMenuOpen(false);
+            }
+        };
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') {
+                setSortMenuOpen(false);
+                setProfileMenuOpen(false);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
     }, []);
 
     // Debounce search
@@ -359,6 +377,18 @@ const Dashboard = () => {
         return noteList.slice(deletedIndex + 1).map(getId);
     };
 
+    const getMovedNoteIds = (oldNotes, newNotes) => {
+        const movedIds = [];
+        for (let i = 0; i < oldNotes.length; i++) {
+            const oldId = oldNotes[i].id;
+            const newIndex = newNotes.findIndex(n => n.id === oldId);
+            if (newIndex !== -1 && newIndex !== i) {
+                movedIds.push(oldId);
+            }
+        }
+        return movedIds;
+    };
+
     const handleWikilinkClick = useCallback(async (title, noteId = null) => {
         if (noteId) {
             const note = notes.find(n => n.id === noteId);
@@ -500,15 +530,64 @@ const Dashboard = () => {
         try {
             if (currentNote) {
                 const response = await api.patch(`/api/notes/${currentNote.id}/`, noteData);
-                setNotes(notes.map(n => n.id === currentNote.id ? response.data : n));
+                const updatedNote = response.data;
+                
+                const newFilteredNotes = filteredNotes.map(n => n.id === currentNote.id ? updatedNote : n).sort((a, b) => {
+                    if (sortOrder === 'alphabetical') return a.title.localeCompare(b.title);
+                    if (sortOrder === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+                    return new Date(b.updated_at) - new Date(a.updated_at);
+                });
+                const affectedIds = getMovedNoteIds(filteredNotes, newFilteredNotes);
+                
+                if (affectedIds.length > 0) {
+                    setReflowingNoteIds(new Set(affectedIds));
+                    await wait(REFLOW_FADE_MS);
+                }
+                
+                setNotes(notes.map(n => n.id === currentNote.id ? updatedNote : n));
+                setRefreshKey(prev => prev + 1);
+                setIsModalOpen(false);
+                setCurrentNote(null);
+                
+                if (affectedIds.length > 0) {
+                    setUnstaggeredNoteIds(new Set(affectedIds));
+                    setTimeout(() => {
+                        setReflowingNoteIds(new Set());
+                        setTimeout(() => setUnstaggeredNoteIds(new Set()), 180);
+                    }, REFLOW_FADE_MS);
+                }
             } else {
                 const response = await api.post('/api/notes/', noteData);
-                setNotes([response.data, ...notes]);
+                const newNote = response.data;
+                
+                const newFilteredNotes = [...filteredNotes, newNote].sort((a, b) => {
+                    if (sortOrder === 'alphabetical') return a.title.localeCompare(b.title);
+                    if (sortOrder === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+                    return new Date(b.updated_at) - new Date(a.updated_at);
+                });
+                const affectedIds = getMovedNoteIds(filteredNotes, newFilteredNotes);
+                
+                if (affectedIds.length > 0) {
+                    setReflowingNoteIds(new Set(affectedIds));
+                    await wait(REFLOW_FADE_MS);
+                }
+                
+                setNotes([newNote, ...notes]);
+                setRefreshKey(prev => prev + 1);
+                setIsModalOpen(false);
+                setCurrentNote(null);
+                
+                if (affectedIds.length > 0) {
+                    setUnstaggeredNoteIds(new Set(affectedIds));
+                    setTimeout(() => {
+                        setReflowingNoteIds(new Set());
+                        setTimeout(() => setUnstaggeredNoteIds(new Set()), 180);
+                    }, REFLOW_FADE_MS);
+                }
             }
-            setRefreshKey(prev => prev + 1);
-            setIsModalOpen(false);
-            setCurrentNote(null);
         } catch (err) {
+            setReflowingNoteIds(new Set());
+            setUnstaggeredNoteIds(new Set());
             console.error('Failed to save note:', err);
             alert('Failed to save note. Please check your inputs.');
         }
@@ -524,7 +603,6 @@ const Dashboard = () => {
             }
             await api.delete(`/api/notes/${id}/`);
             setNotes(notes.filter(n => n.id !== id));
-            setRefreshKey(prev => prev + 1);
             if (affectedIds.length > 0) {
                 setUnstaggeredNoteIds(new Set(affectedIds));
                 setTimeout(() => {
@@ -548,13 +626,36 @@ const Dashboard = () => {
 
     const handleDuplicateNote = async (note) => {
         try {
-            const response = await api.post('/api/notes/', {
-                title: `${note.title} (copy)`,
-                content: note.content,
-                tag_ids: note.tags ? note.tags.map(t => t.id) : []
+            const response = await api.post(`/api/notes/${note.id}/duplicate/`);
+            const newNote = response.data;
+            
+            // Simulate the new sorted order for visible notes
+            const newFilteredNotes = [...filteredNotes, newNote].sort((a, b) => {
+                if (sortOrder === 'alphabetical') return a.title.localeCompare(b.title);
+                if (sortOrder === 'oldest') return new Date(a.created_at) - new Date(b.created_at);
+                return new Date(b.updated_at) - new Date(a.updated_at);
             });
-            setNotes(prev => [response.data, ...prev]);
+            
+            const affectedIds = getMovedNoteIds(filteredNotes, newFilteredNotes);
+            
+            if (affectedIds.length > 0) {
+                setReflowingNoteIds(new Set(affectedIds));
+                await wait(REFLOW_FADE_MS);
+            }
+            
+            setNotes(prev => [newNote, ...prev]);
+            setRefreshKey(prev => prev + 1);
+            
+            if (affectedIds.length > 0) {
+                setUnstaggeredNoteIds(new Set(affectedIds));
+                setTimeout(() => {
+                    setReflowingNoteIds(new Set());
+                    setTimeout(() => setUnstaggeredNoteIds(new Set()), 180);
+                }, REFLOW_FADE_MS);
+            }
         } catch (err) {
+            setReflowingNoteIds(new Set());
+            setUnstaggeredNoteIds(new Set());
             console.error('Failed to duplicate note:', err);
             alert('Failed to duplicate note.');
         }
@@ -813,21 +914,30 @@ const Dashboard = () => {
             <header className="bg-white dark:bg-black sticky top-0 z-[60] border-b border-gray-200 dark:border-gray-800 transition-colors duration-200 py-0">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex items-center gap-2 sm:gap-3 h-16">
-                        <button 
-                            onClick={() => {
-                                setSearchQuery('');
-                                setSelectedTagFilters([]);
-                                window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="shrink-0 flex items-center hover:opacity-80 transition-opacity focus:outline-none"
-                        >
-                            <motion.span 
-                                whileTap={tapAnimation}
-                                className="text-xl sm:text-2xl font-semibold text-black dark:text-white tracking-tight"
+                        <div className="flex items-center">
+                            <button 
+                                onClick={() => {
+                                    setSearchQuery('');
+                                    setSelectedTagFilters([]);
+                                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}
+                                className="shrink-0 flex items-center hover:opacity-80 transition-opacity focus:outline-none"
                             >
-                                ▲ Jots
-                            </motion.span>
-                        </button>
+                                <motion.span 
+                                    whileTap={tapAnimation}
+                                    className="text-xl sm:text-2xl font-semibold text-black dark:text-white tracking-tight"
+                                >
+                                    ▲ Jots
+                                </motion.span>
+                            </button>
+                            <button 
+                                onClick={() => setShowHelp(true)}
+                                className="ml-2 mt-0.5 p-1.5 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                                title="How to use Jots"
+                            >
+                                <HelpCircle className="h-[18px] w-[18px]" />
+                            </button>
+                        </div>
                         
                         <div className="min-w-0 flex-1 px-4 sm:px-8 max-w-2xl">
                             <div className="relative w-full">
@@ -870,14 +980,43 @@ const Dashboard = () => {
                             >
                                 {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                             </motion.button>
-                            <motion.button
-                                whileTap={tapAnimation}
-                                onClick={logout}
-                                className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors sm:flex sm:items-center sm:px-3"
-                            >
-                                <LogOut className="h-4 w-4 sm:mr-2" />
-                                <span className="hidden sm:inline text-sm font-medium">Sign out</span>
-                            </motion.button>
+                            <div className="relative" ref={profileMenuRef}>
+                                <motion.button
+                                    whileTap={tapAnimation}
+                                    onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                                    className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors sm:flex sm:items-center sm:px-3"
+                                >
+                                    <span className="hidden sm:inline text-sm font-medium">
+                                        {user?.first_name || user?.username || 'Profile'}
+                                    </span>
+                                    <ChevronDown className="h-4 w-4 sm:ml-1" />
+                                </motion.button>
+
+                                <AnimatePresence>
+                                    {profileMenuOpen && (
+                                        <motion.div
+                                            variants={dropdownVariants}
+                                            initial="initial"
+                                            animate="animate"
+                                            exit="exit"
+                                            className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg shadow-gray-200/50 dark:shadow-none border border-gray-100 dark:border-gray-800 z-50 overflow-hidden"
+                                        >
+                                            <div className="p-1">
+                                                <button
+                                                    onClick={() => {
+                                                        setProfileMenuOpen(false);
+                                                        logout();
+                                                    }}
+                                                    className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-md transition-colors flex items-center"
+                                                >
+                                                    <LogOut className="h-4 w-4 mr-2" />
+                                                    Sign out
+                                                </button>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -887,7 +1026,7 @@ const Dashboard = () => {
             <main className="flex-1 w-full pb-8 flex flex-col">
                 
             {/* Tabs & Filters Bar - Now sticky to move with header */}
-            <div className="sticky top-16 z-[55] w-full border-b border-gray-200 dark:border-gray-800 bg-white/90 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:bg-black/90 dark:supports-[backdrop-filter]:bg-black/80">
+            <div className="sticky top-16 z-[55] w-full border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-black/90">
                 <div className="mx-auto flex max-w-7xl min-w-0 flex-col gap-3 overflow-visible px-4 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-6 lg:px-8">
                     <div className="flex shrink-0 items-center space-x-6 sm:self-center h-8">
                         <button
@@ -928,7 +1067,7 @@ const Dashboard = () => {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.15 }}
-                            className="flex min-w-0 w-full flex-nowrap items-center gap-2 sm:h-10 sm:gap-3 sm:flex-1"
+                            className="flex min-w-0 w-full flex-nowrap items-center gap-2 sm:h-10 sm:flex-1"
                         >
                     <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar self-center">
                         <div className="flex h-10 flex-nowrap items-center space-x-2 pl-0.5 sm:pl-4">
@@ -1088,7 +1227,7 @@ const Dashboard = () => {
                                 </div>
                             ) : filteredNotes.length > 0 ? (
                                 <>
-                                    <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-1 relative">
+                                    <motion.div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1 relative">
                                         <AnimatePresence>
                                             {filteredNotes.map((note, idx) => (
                                                 <motion.div
@@ -1182,7 +1321,7 @@ const Dashboard = () => {
                                 <div className="flex justify-center items-center h-64">
                                 </div>
                             ) : filteredSharedNotes.length > 0 ? (
-                                <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-1">
+                                <motion.div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1">
                                     <AnimatePresence>
                                         {filteredSharedNotes.map((sn, idx) => (
                                             <motion.div
@@ -1250,6 +1389,7 @@ const Dashboard = () => {
                                 darkMode={darkMode} 
                                 onNoteClick={(id) => handleWikilinkClick(null, id)}
                                 selectedTagFilters={selectedTagFilters}
+                                activeNoteIds={new Set([...notes.map(n => n.id), ...sharedNotes.map(sn => sn.note.id)])}
                                 refreshKey={refreshKey}
                             />
                         </motion.div>
@@ -1306,9 +1446,14 @@ const Dashboard = () => {
                 onClose={() => setShowWelcome(false)} 
                 onAction={openCreateModal} 
             />
+
+            <HelpModal 
+                isOpen={showHelp} 
+                onClose={() => setShowHelp(false)} 
+            />
         </div>
     );
 };
 
-export default Dashboard;
 
+export default Dashboard;

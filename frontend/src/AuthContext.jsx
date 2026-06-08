@@ -1,49 +1,46 @@
 import React, { createContext, useState, useEffect } from 'react';
 import api from './api';
+import { googleLogout } from '@react-oauth/google';
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    const fetchUser = async () => {
+        try {
+            const res = await api.get('/api/auth/me/');
+            setUser(res.data);
+        } catch (error) {
+            console.error('Failed to fetch user:', error);
+        }
+    };
 
     useEffect(() => {
         const token = localStorage.getItem('access');
         if (token) {
             setIsAuthenticated(true);
+            fetchUser();
         }
         setIsLoading(false);
     }, []);
 
-    const login = async (username, password) => {
+    const login = async (credential) => {
         try {
-            const response = await api.post('/api/auth/token/', { username, password });
+            const response = await api.post('/api/auth/google/', { credential });
             localStorage.setItem('access', response.data.access);
             localStorage.setItem('refresh', response.data.refresh);
             setIsAuthenticated(true);
+            await fetchUser();
             return { success: true };
         } catch (error) {
             console.error('Login error:', error);
             return { 
                 success: false, 
-                message: error.response?.data?.detail || 'Login failed. Please check your credentials.' 
+                message: error.response?.data?.error || 'Google login failed.' 
             };
-        }
-    };
-
-    const register = async (username, email, password, password2) => {
-        try {
-            await api.post('/api/auth/register/', { username, email, password, password2 });
-            return { success: true };
-        } catch (error) {
-            console.error('Registration error:', error);
-            let message = 'Registration failed.';
-            if (error.response?.data) {
-                // Collect all error messages from the response object
-                const errors = Object.values(error.response.data).flat();
-                if (errors.length > 0) message = errors[0];
-            }
-            return { success: false, message };
         }
     };
 
@@ -57,14 +54,16 @@ export const AuthProvider = ({ children }) => {
             // Even if blacklist fails (e.g. token already expired), proceed with local cleanup
             console.warn('Token blacklist failed:', error);
         } finally {
+            googleLogout();
             localStorage.removeItem('access');
             localStorage.removeItem('refresh');
             setIsAuthenticated(false);
+            setUser(null);
         }
     };
 
     return (
-        <AuthContext.Provider value={{ isAuthenticated, isLoading, login, register, logout }}>
+        <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout }}>
             {children}
         </AuthContext.Provider>
     );

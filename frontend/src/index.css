@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
@@ -133,7 +134,7 @@ html {
 }
 ::-webkit-scrollbar-thumb {
   background: #d1d5db;
-  border-radius: 3px;
+  border-radius: 0;
 }
 .dark ::-webkit-scrollbar-thumb {
   background: #4b5563;
@@ -192,31 +193,34 @@ html {
 .animate-slide-up   { animation: slide-up 0.3s ease-out both; }
 .animate-pop-in     { animation: pop-in 0.3s ease-out both; }
 
-/* BULLETPROOF MDEditor Dark Mode Fix */
-/* Hide the broken syntax highlighting layer and make the raw textarea text white and visible */
-.dark .w-md-editor-text-pre {
+/* BULLETPROOF MDEditor Fix (Light and Dark Mode) */
+/* Hide the broken syntax highlighting layer and make the raw textarea text visible */
+.w-md-editor-text-pre {
+  display: none !important;
   visibility: hidden !important;
 }
-.dark .w-md-editor-text-input textarea {
-  color: rgb(249 250 251) !important;
-  -webkit-text-fill-color: rgb(249 250 251) !important;
+
+/* Light mode (default) text and cursor visibility */
+.w-md-editor textarea,
+textarea.w-md-editor-text-input,
+.w-md-editor-text-input textarea {
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 50 !important;
   background-color: transparent !important;
-  caret-color: rgb(249 250 251) !important;
+  color: #171717 !important;
+  -webkit-text-fill-color: #171717 !important;
+  caret-color: #171717 !important;
 }
 
+/* Dark mode text and cursor visibility */
 .dark .w-md-editor textarea,
 .dark textarea.w-md-editor-text-input,
 .dark .w-md-editor-text-input textarea {
   background-color: #262626 !important;
   color: rgb(249 250 251) !important;
   -webkit-text-fill-color: rgb(249 250 251) !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  z-index: 50 !important;
-}
-
-.dark .w-md-editor-text-pre {
-  display: none !important;
+  caret-color: rgb(249 250 251) !important;
 }
 
 /* Unify font size across editor and preview */
@@ -280,4 +284,106 @@ html {
 }
 .dark .custom-slider::-moz-range-thumb {
   background: #fff;
+}
+
+/* Fix MDXEditor Dialogs appearing behind NoteModal */
+[data-radix-portal], 
+.mdxeditor-popup-container,
+.mdxeditor-dialog,
+body > div[data-radix-portal], 
+body > div[role="dialog"], 
+body > div[data-radix-popper-content-wrapper] {
+    z-index: 99999 !important;
+}
+
+/* Prevent Radix UI from shifting the background */
+body, html {
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+    pointer-events: auto !important;
+}
+
+body[data-scroll-locked] {
+    overflow: visible !important;
+    overflow-x: hidden !important;
+    overflow-y: scroll !important;
+}
+
+/* Bulletproof Radix UI scroll lock override */
+* {
+    --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* Remove MDXEditor default borders so it fits our container */
+.mdxeditor-root {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+/* --- MDXEditor Block Type Select Theming --- */
+button.mdxeditor-select-trigger {
+    background-color: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: #4b5563 !important; /* text-gray-600 */
+    padding: 4px 8px !important;
+    font-size: 0.875rem !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    transition: all 0.2s !important;
+    box-shadow: none !important;
+}
+.dark button.mdxeditor-select-trigger {
+    color: #d1d5db !important;
+}
+button.mdxeditor-select-trigger:hover {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+}
+.dark button.mdxeditor-select-trigger:hover {
+    background-color: #1f2937 !important;
+    color: #f9fafb !important;
+}
+
+[data-radix-popper-content-wrapper],
+[data-radix-popper-content-wrapper] * {
+    border-radius: 0 !important;
+}
+
+[data-radix-popper-content-wrapper] .mdxeditor-select-content {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e5e5 !important;
+    border-radius: 0 !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    padding: 4px !important;
+}
+.dark [data-radix-popper-content-wrapper] .mdxeditor-select-content {
+    background-color: #0a0a0a !important;
+    border-color: #262626 !important;
+}
+
+.mdxeditor-select-item {
+    border-radius: 0 !important;
+    padding: 6px 12px !important;
+    font-size: 0.875rem !important;
+    color: #4b5563 !important;
+    transition: all 0.2s !important;
+    cursor: pointer !important;
+    outline: none !important;
+}
+.dark .mdxeditor-select-item {
+    color: #d1d5db !important;
+}
+
+.mdxeditor-select-item:hover,
+.mdxeditor-select-item[data-highlighted] {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+}
+.dark .mdxeditor-select-item:hover,
+.dark .mdxeditor-select-item[data-highlighted] {
+    background-color: #1f2937 !important;
+    color: #f9fafb !important;
 }

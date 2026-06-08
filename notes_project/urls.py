@@ -20,6 +20,8 @@ GET    /admin/                      Django admin
 
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -27,12 +29,13 @@ from rest_framework_simplejwt.views import (
     TokenBlacklistView,
 )
 from api.views import (
-    RegisterView, NoteViewSet, TagViewSet,
+    GoogleLoginView, NoteViewSet, TagViewSet,
     ShareNoteView, NotePasswordView, UnlockNoteView, AcceptShareView,
     SharedWithMeView, CopySharedNoteView, UnlockSharedNoteView, RemoveSharedNoteView,
     TrashListView, RestoreNoteView, RestoreSharedNoteView,
     PermanentDeleteNoteView, PermanentDeleteSharedNoteView, EmptyTrashView,
-    GraphView, BacklinksView, NoteTitleSearchView,
+    GraphView, BacklinksView, NoteTitleSearchView, CurrentUserView,
+    ImageUploadView, DuplicateNoteView
 )
 
 # ── DRF Router ──────────────────────────────────────────────────────────────
@@ -45,10 +48,10 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 
     # ── Authentication ───────────────────────────────────────────────────────
-    path("api/auth/register/",       RegisterView.as_view(),        name="auth-register"),
-    path("api/auth/token/",          TokenObtainPairView.as_view(), name="token-obtain-pair"),
+    path("api/auth/google/",         GoogleLoginView.as_view(),     name="google-login"),
     path("api/auth/token/refresh/",  TokenRefreshView.as_view(),    name="token-refresh"),
     path("api/auth/token/blacklist/", TokenBlacklistView.as_view(), name="token-blacklist"),
+    path("api/auth/me/",             CurrentUserView.as_view(),     name="current-user"),
 
     # ── Trash API ────────────────────────────────────────────────────────────
     path("api/notes/trash/", TrashListView.as_view(), name="trash-list"),
@@ -62,6 +65,7 @@ urlpatterns = [
     path("api/notes/<uuid:note_id>/share/", ShareNoteView.as_view(), name="share-note"),
     path("api/notes/<uuid:note_id>/password/", NotePasswordView.as_view(), name="note-password"),
     path("api/notes/<uuid:note_id>/unlock/", UnlockNoteView.as_view(), name="unlock-note"),
+    path("api/notes/<uuid:note_id>/duplicate/", DuplicateNoteView.as_view(), name="duplicate-note"),
     path("api/share/<uuid:token>/", AcceptShareView.as_view(), name="accept-share"),
     path("api/notes/shared-with-me/", SharedWithMeView.as_view(), name="shared-with-me"),
     path("api/notes/shared-with-me/<uuid:note_id>/copy/", CopySharedNoteView.as_view(), name="copy-shared-note"),
@@ -75,8 +79,12 @@ urlpatterns = [
 
     # ── Notes API ────────────────────────────────────────────────────────────
     path("api/", include(router.urls)),
+    path("api/upload-image/", ImageUploadView.as_view(), name="upload-image"),
 
     # ── Password Reset (dj-rest-auth) ─────────────────────────────────────────
     # Temporarily disabled due to routing conflicts with custom registration
     # path("api/auth/password/reset/", include("dj_rest_auth.urls", namespace="dj_rest_auth")),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

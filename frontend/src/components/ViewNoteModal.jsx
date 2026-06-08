@@ -109,14 +109,22 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={note.id}
-                        className="relative w-full max-w-4xl transform overflow-hidden rounded-lg bg-white dark:bg-black shadow-2xl shadow-black/10 dark:shadow-black/60 border border-gray-200 dark:border-gray-800"
+                        className="relative w-full max-w-4xl transform rounded-lg bg-white dark:bg-black shadow-2xl shadow-black/10 dark:shadow-black/60 border border-gray-200 dark:border-gray-800"
                         variants={modalPanelVariants}
                         initial="initial"
                         animate="animate"
                         exit="exit"
                     >
                     
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-gray-100 dark:border-gray-800 px-6 py-5 gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b border-gray-100 dark:border-gray-800 pl-6 py-5 pr-14 sm:pr-16 gap-4 relative">
+                        <motion.button
+                            whileTap={tapAnimation}
+                            onClick={onClose}
+                            className="absolute top-5 right-5 sm:right-6 rounded-md p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </motion.button>
+
                         <div className="flex-1 min-w-0">
                             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white break-words tracking-tight">
                                 {note.title}
@@ -175,6 +183,19 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                                     <Copy className="w-4 h-4 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white" />
                                 </motion.button>
                             )}
+                            {!note.isShared && onShare && (
+                                <motion.button
+                                    whileTap={tapAnimation}
+                                    onClick={() => {
+                                        onClose();
+                                        onShare(note);
+                                    }}
+                                    className="rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                    title="Share note"
+                                >
+                                    <Share2 className="w-4 h-4 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white" />
+                                </motion.button>
+                            )}
                             {!note.isShared && onSetPassword && !note.is_password_protected && (
                                 <motion.button
                                     whileTap={tapAnimation}
@@ -195,28 +216,15 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                                     <ShieldOff className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white" />
                                 </motion.button>
                             )}
-                            {!note.isShared && onShare && (
-                                <motion.button
-                                    whileTap={tapAnimation}
-                                    onClick={() => {
-                                        onClose();
-                                        onShare(note);
-                                    }}
-                                    className="rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                    title="Share note"
-                                >
-                                    <Share2 className="w-4 h-4 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white" />
-                                </motion.button>
-                            )}
                             {!isLocked && (
                                 <div className="relative" ref={exportMenuRef}>
                                     <motion.button
                                         whileTap={tapAnimation}
                                         onClick={() => setShowExportMenu(prev => !prev)}
-                                        className="rounded-full p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                        className="rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                                         title="Export note"
                                     >
-                                        <Download className="w-5 h-5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300" />
+                                        <Download className="w-4 h-4 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white" />
                                     </motion.button>
                                     <AnimatePresence>
                                     {showExportMenu && (
@@ -285,19 +293,21 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                             >
                                 <Trash2 className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400" />
                             </motion.button>
-                            <motion.button
-                                whileTap={tapAnimation}
-                                onClick={onClose}
-                                className="rounded-md p-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                            >
-                                <X className="w-4 h-4 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white" />
-                            </motion.button>
                         </div>
                     </div>
 
                     <div className="px-6 py-8 sm:px-10 overflow-y-auto max-h-[60vh] sm:max-h-[70vh]">
-                        {isLocked ? (
-                            <form onSubmit={handleUnlock} className="mx-auto max-w-md rounded-md border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-black p-5 text-center">
+                        <AnimatePresence mode="wait">
+                            {isLocked ? (
+                                <motion.form
+                                    key="password-form"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    onSubmit={handleUnlock} 
+                                    className="mx-auto max-w-md rounded-md border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-black p-5 text-center"
+                                >
                                 <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-md bg-white dark:bg-gray-900 text-black dark:text-white border border-gray-200 dark:border-gray-800">
                                     <Lock className="h-5 w-5" />
                                 </div>
@@ -324,26 +334,33 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                                 >
                                     {isSubmittingPassword ? 'Unlocking...' : 'Unlock note'}
                                 </motion.button>
-                            </form>
-                        ) : (
-                            <>
-                                <div className="prose prose-lg max-w-none text-gray-900 dark:text-gray-100 dark:prose-invert prose-a:text-black dark:prose-a:text-white hover:prose-a:text-gray-700 dark:hover:prose-a:text-gray-300">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={createMarkdownComponents(onWikilinkClick)}>
-                                        {preprocessContent(displayNote.content)}
-                                    </ReactMarkdown>
-                                </div>
-                                
-                                {/* Backlinks Panel */}
-                                {!note.isShared && (
-                                    <BacklinksPanel 
-                                        noteId={note.id} 
-                                        onNoteClick={(backlinkNoteId) => {
-                                            if (onWikilinkClick) onWikilinkClick(null, backlinkNoteId);
-                                        }} 
-                                    />
-                                )}
-                            </>
-                        )}
+                                </motion.form>
+                            ) : (
+                                <motion.div
+                                    key="note-content"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                >
+                                    <div className="prose prose-lg max-w-none text-gray-900 dark:text-gray-100 dark:prose-invert prose-a:text-black dark:prose-a:text-white hover:prose-a:text-gray-700 dark:hover:prose-a:text-gray-300">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={createMarkdownComponents(onWikilinkClick)}>
+                                            {preprocessContent(displayNote.content)}
+                                        </ReactMarkdown>
+                                    </div>
+                                    
+                                    {/* Backlinks Panel */}
+                                    {!note.isShared && (
+                                        <BacklinksPanel 
+                                            noteId={note.id} 
+                                            onNoteClick={(backlinkNoteId) => {
+                                                if (onWikilinkClick) onWikilinkClick(null, backlinkNoteId);
+                                            }} 
+                                        />
+                                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </motion.div>
                 </AnimatePresence>

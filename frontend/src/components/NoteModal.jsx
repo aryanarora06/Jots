@@ -1,18 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Tag as TagIcon } from 'lucide-react';
+import { X, Plus, Tag as TagIcon, Image as ImageIcon } from 'lucide-react';
 import { modalBackdropVariants, modalPanelVariants, tapAnimation } from '../utils/motion';
 import api from '../api';
-import MDEditor from '@uiw/react-md-editor';
-import remarkBreaks from 'remark-breaks';
-import remarkGfm from 'remark-gfm';
+import {
+  MDXEditor,
+  headingsPlugin,
+  listsPlugin,
+  quotePlugin,
+  thematicBreakPlugin,
+  markdownShortcutPlugin,
+  toolbarPlugin,
+  UndoRedo,
+  BoldItalicUnderlineToggles,
+  CreateLink,
+  linkDialogPlugin,
+  linkPlugin,
+  ListsToggle,
+  imagePlugin
+} from '@mdxeditor/editor';
+import '@mdxeditor/editor/style.css';
 import WordCount from './WordCount';
+import imageCompression from 'browser-image-compression';
+import WikilinkAutocomplete from './WikilinkAutocomplete';
 
 const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreateTag }) => {
     const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [selectedTagIds, setSelectedTagIds] = useState([]);
     
+    const editorRef = useRef(null);
+    const fileInputRef = useRef(null);
+
     const [isDark, setIsDark] = useState(false);
     
     const [showNewTagInput, setShowNewTagInput] = useState(false);
@@ -20,16 +39,12 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
     const formRef = useRef(null);
     const newTagInputRef = useRef(null);
 
-    const [showAutocomplete, setShowAutocomplete] = useState(false);
-    const [autocompleteQuery, setAutocompleteQuery] = useState('');
-    const [autocompleteResults, setAutocompleteResults] = useState([]);
-    const [cursorPos, setCursorPos] = useState(0);
+
     
     useEffect(() => {
         if (isOpen) {
             setIsDark(document.documentElement.classList.contains('dark'));
-            setShowAutocomplete(false);
-            setAutocompleteQuery('');
+
             
             // Prevent background scrolling
             document.body.style.overflow = 'hidden';
@@ -41,58 +56,6 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
             document.body.style.overflow = '';
         };
     }, [isOpen]);
-
-    useEffect(() => {
-        if (!showAutocomplete) {
-            setAutocompleteResults([]);
-            return;
-        }
-        const fetchTitles = async () => {
-            try {
-                const res = await api.get(`/api/notes/titles/?q=${encodeURIComponent(autocompleteQuery)}`);
-                setAutocompleteResults(res.data);
-            } catch (err) {
-                console.error('Failed to fetch note titles for autocomplete', err);
-            }
-        };
-        const debounce = setTimeout(fetchTitles, 150);
-        return () => clearTimeout(debounce);
-    }, [showAutocomplete, autocompleteQuery]);
-
-    const checkAutocomplete = (text, pos) => {
-        const textUpToCursor = text.substring(0, pos);
-        const match = textUpToCursor.match(/\[\[([^\]]*)$/);
-        if (match) {
-            setShowAutocomplete(true);
-            setAutocompleteQuery(match[1]);
-        } else {
-            setShowAutocomplete(false);
-        }
-    };
-
-    const handleContentChange = (val) => {
-        const newVal = val ?? '';
-        setContent(newVal);
-        
-        const activeEl = document.activeElement;
-        if (activeEl && activeEl.tagName === 'TEXTAREA') {
-            const pos = activeEl.selectionStart;
-            setCursorPos(pos);
-            checkAutocomplete(newVal, pos);
-        }
-    };
-
-    const handleAutocompleteSelect = (selectedTitle) => {
-        const textUpToCursor = content.substring(0, cursorPos);
-        const textAfterCursor = content.substring(cursorPos);
-        
-        const match = textUpToCursor.match(/\[\[([^\]]*)$/);
-        if (match) {
-            const newTextUpToCursor = textUpToCursor.substring(0, match.index) + `[[${selectedTitle}]]`;
-            setContent(newTextUpToCursor + textAfterCursor);
-            setShowAutocomplete(false);
-        }
-    };
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -165,6 +128,67 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
             setShowNewTagInput(false);
         }
     };
+    const imageUploadHandler = async (image) => {
+        try {
+            const options = {
+                maxSizeMB: 0.1, // 100 KB
+                maxWidthOrHeight: 1920,
+                useWebWorker: true
+            };
+            const compressedFile = await imageCompression(image, options);
+            const formData = new FormData();
+            formData.append('image', compressedFile, compressedFile.name);
+            
+            const response = await api.post('/api/upload-image/', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            return response.data.url;
+        } catch (error) {
+            console.error('Image upload failed:', error);
+            alert('Failed to upload image. Please try again.');
+            return '';
+        }
+    };
+
+    const handleCustomImageUpload = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const url = await imageUploadHandler(file);
+        if (url && editorRef.current) {
+            const currentContent = editorRef.current.getMarkdown();
+            const newContent = currentContent.trimEnd() + `\n\n![Image](${url})\n`;
+            editorRef.current.setMarkdown(newContent);
+            setContent(newContent);
+        }
+        e.target.value = '';
+    };
+
+    const handleWikilinkSelect = (title, query) => {
+        if (!editorRef.current) return;
+        
+        const currentMarkdown = editorRef.current.getMarkdown();
+        let searchStr = `[[${query || ''}`;
+        let lastIndex = currentMarkdown.lastIndexOf(searchStr);
+        
+        // MDXEditor sometimes escapes unmatched brackets in getMarkdown() as \[\[
+        if (lastIndex === -1) {
+            searchStr = `\\[\\[${query || ''}`;
+            lastIndex = currentMarkdown.lastIndexOf(searchStr);
+        }
+        
+        if (lastIndex !== -1) {
+            const newMarkdown = currentMarkdown.slice(0, lastIndex) + `[[${title}]] ` + currentMarkdown.slice(lastIndex + searchStr.length);
+            editorRef.current.setMarkdown(newMarkdown);
+            setContent(newMarkdown);
+            
+            // Refocus the editor so user can continue typing
+            setTimeout(() => {
+                editorRef.current?.focus();
+            }, 50);
+        }
+    };
 
     return (
         <AnimatePresence>
@@ -234,7 +258,7 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
                                             key={tag.id}
                                             type="button"
                                             onClick={() => toggleTag(tag.id)}
-                                            className={`text-xs px-3 py-1 rounded-md transition-all font-medium border ${
+                                            className={`text-xs px-3 h-7 flex items-center transition-all font-medium border ${
                                                 selectedTagIds.includes(tag.id) 
                                                 ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white opacity-100' 
                                                 : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 dark:bg-black dark:text-gray-400 dark:border-gray-800 dark:hover:border-gray-700'
@@ -249,13 +273,13 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
                                             whileTap={tapAnimation}
                                             type="button"
                                             onClick={() => setShowNewTagInput(true)}
-                                            className="text-xs px-2 py-1 flex items-center text-gray-400 hover:text-black dark:hover:text-white transition-colors focus:outline-none"
+                                            className="h-7 text-xs px-2 flex items-center text-gray-400 hover:text-black dark:hover:text-white transition-colors focus:outline-none"
                                         >
                                             <Plus className="w-3 h-3 mr-1" /> Add tag
                                         </motion.button>
                                     ) : (
-                                        <div className="flex items-center">
-                                            <div className="flex h-8 overflow-hidden rounded-md border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+                                        <div className="flex items-center h-7">
+                                            <div className="flex h-7 overflow-hidden border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
                                             <input
                                                 ref={newTagInputRef}
                                                 type="text"
@@ -291,62 +315,55 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
                                 </div>
                             </div>
 
-                            <div className="relative rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden" data-color-mode={isDark ? 'dark' : 'light'}>
-                                <MDEditor
-                                    value={content}
-                                    onChange={handleContentChange}
-                                    textareaProps={{
-                                        onKeyUp: (e) => {
-                                            const pos = e.target.selectionStart;
-                                            setCursorPos(pos);
-                                            checkAutocomplete(content, pos);
-                                        },
-                                        onClick: (e) => {
-                                            const pos = e.target.selectionStart;
-                                            setCursorPos(pos);
-                                            checkAutocomplete(content, pos);
-                                        }
-                                    }}
-                                    height={300}
-                                    preview="live"
-                                    hideToolbar={false}
-                                    previewOptions={{ remarkPlugins: [remarkGfm, remarkBreaks] }}
-                                    visibleDragBar={true}
+                            <div className="relative rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-black">
+                                <MDXEditor
+                                    key={note ? note.id : 'new'}
+                                    ref={editorRef}
+                                    markdown={note ? (note.content || '') : ''}
+                                    onChange={(markdown) => setContent(markdown)}
+                                    className={`min-h-[300px] ${isDark ? 'dark-theme dark-editor' : ''}`}
+                                    contentEditableClassName="prose dark:prose-invert max-w-none p-4 min-h-[300px] focus:outline-none"
+                                    plugins={[
+                                        headingsPlugin(),
+                                        listsPlugin(),
+                                        quotePlugin(),
+                                        thematicBreakPlugin(),
+                                        markdownShortcutPlugin(),
+                                        linkPlugin(),
+                                        linkDialogPlugin(),
+                                        imagePlugin({ imageUploadHandler }),
+                                        toolbarPlugin({
+                                            toolbarContents: () => (
+                                                <div className="flex flex-wrap gap-1 items-center p-1 border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-black w-full">
+                                                    <UndoRedo />
+                                                    <div className="w-px h-4 bg-gray-300 dark:bg-gray-700 mx-1" />
+                                                    <BoldItalicUnderlineToggles />
+                                                    <div className="w-px h-4 bg-gray-300 dark:bg-gray-700 mx-1" />
+                                                    <CreateLink />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => fileInputRef.current?.click()}
+                                                        className="p-1.5 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 rounded transition-colors"
+                                                        title="Insert Image"
+                                                    >
+                                                        <ImageIcon className="w-4 h-4" />
+                                                    </button>
+                                                    <div className="w-px h-4 bg-gray-300 dark:bg-gray-700 mx-1" />
+                                                    <ListsToggle />
+                                                </div>
+                                            )
+                                        })
+                                    ]}
                                 />
-                                
-                                <AnimatePresence>
-                                    {showAutocomplete && (
-                                        <motion.div 
-                                            initial={{ opacity: 0 }}
-                                            animate={{ opacity: 1 }}
-                                            exit={{ opacity: 0 }}
-                                            className="absolute z-50 left-4 right-4 bottom-8 max-h-48 overflow-y-auto bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-md shadow-xl"
-                                        >
-                                            {autocompleteResults.length > 0 ? (
-                                                <div className="p-1.5 flex flex-col gap-1">
-                                                    {autocompleteResults.map(res => (
-                                                        <motion.button
-                                                            whileTap={tapAnimation}
-                                                            key={res.id}
-                                                            type="button"
-                                                            onClick={() => handleAutocompleteSelect(res.title)}
-                                                            className="text-left px-3 py-2 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-black dark:hover:text-white transition-colors flex items-center"
-                                                        >
-                                                            <span className="text-gray-400 dark:text-gray-500 mr-1 font-mono">[[</span>
-                                                            {res.title}
-                                                            <span className="text-gray-400 dark:text-gray-500 ml-1 font-mono">]]</span>
-                                                        </motion.button>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 italic">
-                                                    No matching notes found. Keep typing to create a new link.
-                                                </div>
-                                            )}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                                <WikilinkAutocomplete onSelect={handleWikilinkSelect} />
                             </div>
+                            <input 
+                                type="file" 
+                                accept="image/*" 
+                                className="hidden" 
+                                ref={fileInputRef} 
+                                onChange={handleCustomImageUpload} 
+                            />
                         </div>
 
                         <div className="shrink-0 bg-gray-50 dark:bg-black px-5 py-3 sm:px-6 flex items-center justify-between border-t border-gray-100 dark:border-gray-800">

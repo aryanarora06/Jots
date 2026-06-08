@@ -6,8 +6,9 @@ Utility functions for parsing and managing [[wikilinks]] in note content.
 
 import re
 
-# Matches [[Note Title]] — captures the text between the double brackets
-WIKILINK_PATTERN = re.compile(r'\[\[([^\[\]]+?)\]\]')
+# Matches [[Note Title]] or \[\[Note Title\]\]
+# MDXEditor escapes brackets since they are markdown link characters
+WIKILINK_PATTERN = re.compile(r'\\?\[\\?\[([^\[\]]+?)\\?\]\\?\]')
 
 
 def extract_wikilinks(content: str) -> list[str]:

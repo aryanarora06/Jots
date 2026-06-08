@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { tapAnimation } from '../utils/motion';
 import api from '../api';
 
-const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
+const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteIds, refreshKey }) => {
     // Basic State
     const [graphData, setGraphData] = useState({ nodes: [], links: [] });
     const [isLoading, setIsLoading] = useState(true);
@@ -15,12 +15,13 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
     // UI State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isGraphReady, setIsGraphReady] = useState(false);
+    const [renderedKey, setRenderedKey] = useState(0);
     const [searchQuery, setSearchQuery] = useState('');
     const [showOrphans, setShowOrphans] = useState(true);
     const [showLabels, setShowLabels] = useState('hover'); // 'hover', 'always', 'never'
 
     // Force sliders
-    const [linkDistance, setLinkDistance] = useState(15);
+    const [linkDistance, setLinkDistance] = useState(35);
     const [repelForce, setRepelForce] = useState(100);
     const [gravityForce, setGravityForce] = useState(0.05);
 
@@ -137,6 +138,10 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
             activeNodes = activeNodes.filter(n => n.incoming_count > 0 || n.outgoing_count > 0);
         }
 
+        if (activeNoteIds) {
+            activeNodes = activeNodes.filter(n => activeNoteIds.has(n.id));
+        }
+
         if (selectedTagFilters && selectedTagFilters.length > 0) {
             const selectedSet = new Set(selectedTagFilters.map(String));
             const taggedNodeIds = new Set(
@@ -153,7 +158,13 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
                 if (taggedNodeIds.has(tgt)) nodesToShow.add(src);
             });
             
-            activeNodes = activeNodes.filter(n => nodesToShow.has(n.id));
+            // Include neighbors from the full graph data, bypassing the activeNoteIds restriction for those neighbors
+            activeNodes = graphData.nodes.filter(n => nodesToShow.has(n.id));
+            
+            // Re-apply orphan filtering for the newly added neighbors if necessary
+            if (!showOrphans) {
+                activeNodes = activeNodes.filter(n => n.incoming_count > 0 || n.outgoing_count > 0);
+            }
         }
 
         const activeNodeIds = new Set(activeNodes.map(n => n.id));
@@ -169,7 +180,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
         // We'll pass the search query to the paint function.
 
         return { nodes: activeNodes, links: activeLinks };
-    }, [graphData, showOrphans, searchQuery, selectedTagFilters]);
+    }, [graphData, showOrphans, searchQuery, selectedTagFilters, activeNoteIds]);
 
     const [displayedGraphData, setDisplayedGraphData] = useState({ nodes: [], links: [] });
 
@@ -209,6 +220,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
         setIsGraphReady(false);
         const timer = setTimeout(() => {
             setDisplayedGraphData(filteredGraphData);
+            setRenderedKey(prev => prev + 1);
             if (graphRef.current && filteredGraphData.nodes.length > 0) {
                 // Wait briefly for the engine to ingest the data and run warmup ticks
                 setTimeout(() => {
@@ -332,7 +344,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
         return colors.link;
     }, [hoveredNode, searchQuery, isNodeMatch, filteredGraphData.nodes, colors, darkMode]);
 
-    if (isLoading) {
+    if (isLoading && graphData.nodes.length === 0) {
         return (
             <div className="flex items-center justify-center py-32">
             </div>
@@ -344,7 +356,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
             
             {/* Top Bar Overlay */}
             <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start pointer-events-none">
-                <div className="flex items-center gap-3 text-xs font-medium bg-white/90 dark:bg-black/90 backdrop-blur px-3 py-2 rounded-md border border-gray-200 dark:border-gray-800 pointer-events-auto shadow-sm">
+                <div className="flex items-center gap-3 text-xs font-medium bg-white/90 dark:bg-black/90 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-800 pointer-events-auto shadow-sm">
                     <span>{filteredGraphData.nodes.length} nodes</span>
                     <span className="text-gray-300 dark:text-gray-700">|</span>
                     <span>{filteredGraphData.links.length} edges</span>
@@ -354,7 +366,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
                     whileTap={tapAnimation}
                     ref={settingsButtonRef}
                     onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                    className="p-2 bg-white/90 dark:bg-black/90 backdrop-blur rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors"
+                    className="p-2 bg-white/90 dark:bg-black/90 rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors"
                 >
                     <Settings2 className="w-4 h-4 text-black dark:text-white" />
                 </motion.button>
@@ -369,7 +381,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
                         graphRef.current.zoomToFit(400, 180, () => true);
                     }
                 }}
-                className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-4 py-2 bg-white/90 dark:bg-black/90 backdrop-blur rounded-full border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors text-black dark:text-white text-sm font-medium"
+                className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-4 py-2 bg-white/90 dark:bg-black/90 rounded-full border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors text-black dark:text-white text-sm font-medium"
             >
                 <Focus className="w-4 h-4" />
                 Restore View
@@ -384,7 +396,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute top-14 right-3 z-20 w-72 max-h-[80%] overflow-y-auto bg-white/95 dark:bg-black/95 backdrop-blur-md border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl p-4 text-sm"
+                        className="absolute top-14 right-3 z-20 w-72 max-h-[80%] overflow-y-auto bg-white/95 dark:bg-black/95 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl p-4 text-sm"
                     >
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-semibold text-black dark:text-white">Graph Settings</h3>
@@ -490,7 +502,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [] }) => {
                 )}
             </AnimatePresence>
 
-            <div className={`absolute inset-0 transition-opacity duration-300 ease-in-out ${isGraphReady ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`absolute inset-0 transition-opacity duration-300 ease-in-out ${(!isLoading && isGraphReady) ? 'opacity-100' : 'opacity-0'}`}>
                 <ForceGraph2D
                     ref={graphRef}
                     graphData={displayedGraphData}

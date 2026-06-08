@@ -28,32 +28,62 @@ from .serializers import (
 # Authentication Views
 # ---------------------------------------------------------------------------
 
-class RegisterView(generics.CreateAPIView):
-    """
-    POST /api/auth/register/
+from django.conf import settings
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from rest_framework_simplejwt.tokens import RefreshToken
 
-    Public endpoint — no authentication required.
-    Returns 201 with {id, username, email} on success.
-    Returns 400 with validation errors on failure.
+class GoogleLoginView(APIView):
     """
+    POST /api/auth/google/
 
-    queryset = User.objects.all()
+    Accepts a Google ID token ("credential"), verifies it,
+    finds or creates a User by email, and returns JWT tokens.
+    """
     permission_classes = (AllowAny,)
-    serializer_class = UserRegistrationSerializer
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response(
-            {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "message": "Account created successfully. Please obtain a token via /api/auth/token/.",
-            },
-            status=status.HTTP_201_CREATED,
-        )
+    def post(self, request, *args, **kwargs):
+        credential = request.data.get("credential")
+        if not credential:
+            return Response({"error": "No credential provided"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Verify the token
+            idinfo = id_token.verify_oauth2_token(
+                credential, 
+                google_requests.Request(), 
+                settings.GOOGLE_OAUTH2_CLIENT_ID
+            )
+            
+            email = idinfo.get("email")
+            if not email:
+                return Response({"error": "Google token missing email"}, status=status.HTTP_400_BAD_REQUEST)
+
+            first_name = idinfo.get("given_name", "")
+            last_name = idinfo.get("family_name", "")
+            
+            # Find or create user using email as the username
+            user, created = User.objects.get_or_create(username=email, defaults={
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name
+            })
+            
+            # Generate SimpleJWT tokens
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "is_new_user": created
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError as e:
+            # Invalid token
+            return Response({"error": f"Invalid token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return Response({"error": f"Server error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # ---------------------------------------------------------------------------
@@ -133,11 +163,13 @@ class NoteViewSet(viewsets.ModelViewSet):
             search_str = search.lower()
             for note in queryset:
                 t_score = fuzz.partial_ratio(search_str, note.title.lower() if note.title else "")
-                c_score = fuzz.partial_ratio(search_str, note.content.lower() if note.content else "")
-                
-                # Also fallback to token_set_ratio just in case words are out of order
                 t_score2 = fuzz.token_set_ratio(search_str, note.title.lower() if note.title else "")
-                c_score2 = fuzz.token_set_ratio(search_str, note.content.lower() if note.content else "")
+                
+                c_score = 0
+                c_score2 = 0
+                if not note.password_hash:
+                    c_score = fuzz.partial_ratio(search_str, note.content.lower() if note.content else "")
+                    c_score2 = fuzz.token_set_ratio(search_str, note.content.lower() if note.content else "")
                 
                 if max(t_score, c_score, t_score2, c_score2) > 65:
                     matched_ids.append(note.id)
@@ -160,6 +192,36 @@ class NoteViewSet(viewsets.ModelViewSet):
         """
         note = serializer.save()
         sync_note_links(note)
+
+class DuplicateNoteView(APIView):
+    """
+    Server-side duplication of a note.
+    This safely copies the password_hash and is_password_protected fields
+    without needing the plaintext password from the frontend.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, note_id):
+        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        
+        from datetime import timedelta
+        # Create a new note mimicking the old one
+        new_note = Note.objects.create(
+            owner=request.user,
+            title=f"{note.title} (copy)",
+            content=note.content,
+            password_hash=note.password_hash
+        )
+        
+        # Copy tags over
+        new_note.tags.set(note.tags.all())
+        
+        # Sync wikilinks
+        sync_note_links(new_note)
+        
+        # Return serialized note
+        serializer = NoteSerializer(new_note, context={'request': request, 'include_protected_content': True})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def perform_destroy(self, instance):
         """Soft-delete: move to trash instead of permanent deletion."""
@@ -619,3 +681,38 @@ class NoteTitleSearchView(APIView):
             {'id': str(nid), 'title': title}
             for nid, title in notes
         ])
+
+class CurrentUserView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        return Response({
+            "id": request.user.id,
+            "username": request.user.username,
+            "email": request.user.email
+        })
+
+import uuid
+import os
+from django.core.files.storage import FileSystemStorage
+from rest_framework.parsers import MultiPartParser, FormParser
+
+class ImageUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, *args, **kwargs):
+        file_obj = request.FILES.get('image')
+        if not file_obj:
+            return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        ext = os.path.splitext(file_obj.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:
+            return Response({'error': 'Unsupported file type'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        fs = FileSystemStorage()
+        filename = f"{uuid.uuid4().hex}{ext}"
+        saved_name = fs.save(filename, file_obj)
+        file_url = fs.url(saved_name)
+        
+        return Response({'url': request.build_absolute_uri(file_url)}, status=status.HTTP_201_CREATED)

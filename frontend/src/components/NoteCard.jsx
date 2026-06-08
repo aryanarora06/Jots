@@ -154,9 +154,6 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                         )}
                         <h3 className="text-base font-semibold text-black dark:text-white line-clamp-1 tracking-tight">{note.title}</h3>
                     </div>
-                    {note.is_password_protected && (
-                        <Lock className="ml-2 mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-                    )}
                 </div>
                 
                 {isShared && ownerName && (
@@ -207,22 +204,29 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                 )}
             </div>
             
-            <div className="px-5 py-3.5 border-t border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-3 mt-auto">
+            <div className="px-5 py-3.5 border-t border-gray-100 dark:border-gray-800 flex flex-nowrap items-center justify-between gap-3 mt-auto overflow-hidden">
                 <div className="flex items-center gap-2">
                     <div className="text-xs text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
                         {formatDate(note.updated_at)}
                     </div>
                     <span className="text-xs text-gray-300 dark:text-gray-600" aria-hidden="true">|</span>
-                    <WordCount note={note} />
+                    <WordCount note={note} className="whitespace-nowrap" />
                 </div>
-                <div className="flex flex-nowrap overflow-x-auto gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 scrollbar-hide">
+                <div className="flex flex-nowrap overflow-x-auto gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 scrollbar-hide flex-shrink-0">
+                    {onCopyContent && !note.is_password_protected && (
+                        <motion.button
+                            whileTap={tapAnimation}
+                            onClick={(e) => { e.stopPropagation(); handleCopyContent(); }}
+                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            title="Copy content to clipboard"
+                        >
+                            <ClipboardCopy className="w-3.5 h-3.5" />
+                        </motion.button>
+                    )}
                     {isShared && onCopy && !note.is_password_protected && (
                         <motion.button
                             whileTap={tapAnimation}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopy();
-                            }}
+                            onClick={(e) => { e.stopPropagation(); handleCopy(); }}
                             className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Copy to my notes"
                         >
@@ -232,36 +236,17 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                     {!isShared && onDuplicate && (
                         <motion.button
                             whileTap={tapAnimation}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleDuplicate();
-                            }}
+                            onClick={(e) => { e.stopPropagation(); handleDuplicate(); }}
                             className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Duplicate note"
                         >
                             <Files className="w-3.5 h-3.5" />
                         </motion.button>
                     )}
-                    {onCopyContent && !note.is_password_protected && (
-                        <motion.button
-                            whileTap={tapAnimation}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyContent();
-                            }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
-                            title="Copy content to clipboard"
-                        >
-                            <ClipboardCopy className="w-3.5 h-3.5" />
-                        </motion.button>
-                    )}
                     {!isShared && onShare && (
                         <motion.button
                             whileTap={tapAnimation}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleShare();
-                            }}
+                            onClick={(e) => { e.stopPropagation(); handleShare(); }}
                             className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Share note"
                         >
@@ -271,10 +256,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                     {!isShared && onSetPassword && !note.is_password_protected && (
                         <motion.button
                             whileTap={tapAnimation}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onSetPassword(note);
-                            }}
+                            onClick={(e) => { e.stopPropagation(); onSetPassword(note); }}
                             className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Add password protection"
                         >
@@ -284,10 +266,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                     {!isShared && onRemovePassword && note.is_password_protected && (
                         <motion.button
                             whileTap={tapAnimation}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onRemovePassword(note);
-                            }}
+                            onClick={(e) => { e.stopPropagation(); onRemovePassword(note); }}
                             className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Remove password protection"
                         >
@@ -298,10 +277,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                         <div className="relative" ref={exportMenuRef}>
                             <motion.button
                                 whileTap={tapAnimation}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowExportMenu(prev => !prev);
-                                }}
+                                onClick={(e) => { e.stopPropagation(); setShowExportMenu(prev => !prev); }}
                                 className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                                 title="Export note"
                             >
@@ -314,7 +290,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                                     initial="initial"
                                     animate="animate"
                                     exit="exit"
-                                    className="absolute right-0 bottom-full mb-1 z-50 w-44 overflow-hidden rounded-none border border-gray-200 dark:border-gray-800 bg-white dark:bg-black shadow-lg"
+                                    className="absolute right-0 bottom-full mb-1 z-50 w-44 overflow-hidden rounded-md border border-gray-200 dark:border-gray-800 bg-white dark:bg-black shadow-lg"
                                 >
                                     <button
                                         onClick={(e) => { e.stopPropagation(); exportAsMarkdown(note); setShowExportMenu(false); }}
@@ -345,10 +321,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                     {!isShared && !isLocked && (
                         <motion.button
                             whileTap={tapAnimation}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit();
-                            }}
+                            onClick={(e) => { e.stopPropagation(); handleEdit(); }}
                             className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Edit note"
                         >
@@ -357,10 +330,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                     )}
                     <motion.button
                         whileTap={tapAnimation}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleDelete();
-                        }}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(); }}
                         className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
                         title={isShared ? "Remove shared note" : "Delete note"}
                     >

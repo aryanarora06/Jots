@@ -40,9 +40,9 @@ export const preprocessLinks = (text) => {
  */
 export const preprocessWikilinks = (text) => {
     if (!text) return '';
-    // Match [[Note Title]] and convert to a clickable markdown link
-    return text.replace(/\[\[([^\]]+?)\]\]/g, (match, title) => {
-        const trimmed = title.trim();
+    // Match [[Note Title]] or \[\[Note Title\]\] and convert to a clickable markdown link
+    return text.replace(/\\?\[\\?\[([^\[\]]+?)\\?\]\\?\]/g, (match, title) => {
+        const trimmed = title.replace(/\\/g, '').trim();
         return `[${trimmed}](#wikilink:${encodeURIComponent(trimmed)})`;
     });
 };
