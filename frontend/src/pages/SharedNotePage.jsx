@@ -84,8 +84,8 @@ const SharedNotePage = () => {
                     className="bg-white dark:bg-gray-900 py-8 px-6 shadow-xl shadow-gray-200/50 dark:shadow-none sm:rounded-2xl border border-gray-100 dark:border-gray-800"
                 >
                     <div className="flex justify-center mb-6">
-                        <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-full">
-                            <Book className="h-8 w-8 text-red-600 dark:text-red-400" />
+                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-black dark:text-white">
+                            <Book className="h-6 w-6" />
                         </div>
                     </div>
                     
@@ -93,17 +93,18 @@ const SharedNotePage = () => {
                         Shared Note
                     </h2>
 
+                    <AnimatePresence mode="wait">
                     {isLoading ? (
-                        <div className="flex flex-col items-center justify-center py-24 text-center">
+                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="flex flex-col items-center justify-center py-24 text-center">
                             <h2 className="mt-4 text-xl font-medium text-gray-900 dark:text-white">Loading note...</h2>
-                        </div>
+                        </motion.div>
                     ) : error ? (
-                        <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-100 dark:border-red-800 text-center">
+                        <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="mt-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-100 dark:border-red-800 text-center">
                             <AlertCircle className="w-6 h-6 text-red-500 dark:text-red-400 mx-auto mb-2" />
                             <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-                        </div>
+                        </motion.div>
                     ) : notePreview ? (
-                        <div className="mt-6 space-y-6 animate-fade-in">
+                        <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }} className="mt-6 space-y-6">
                             <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
                                 <h3 className="font-semibold text-gray-900 dark:text-white mb-1 tracking-tight">
                                     {notePreview.title}
@@ -122,7 +123,7 @@ const SharedNotePage = () => {
                                 whileTap={tapAnimation}
                                 onClick={handleAccept}
                                 disabled={isAccepting}
-                                className={`w-full flex items-center justify-center py-3 px-4 rounded-xl text-sm font-semibold text-white bg-red-600 hover:bg-red-500 focus:outline-none transition-all active:scale-95 ${isAccepting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                className={`w-full flex items-center justify-center py-3 px-4 rounded-xl text-sm font-semibold text-white bg-black dark:bg-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none transition-all ${isAccepting ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
                                 {isAccepting ? (
                                     <span className="w-5 h-5 flex items-center justify-center">...</span>
@@ -133,8 +134,9 @@ const SharedNotePage = () => {
                                     </>
                                 )}
                             </motion.button>
-                        </div>
+                        </motion.div>
                     ) : null}
+                    </AnimatePresence>
                 </motion.div>
             </div>
         </div>

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import { Settings2, X, Search, Focus, Hash } from 'lucide-react';
+import { Settings2, X, Search, Focus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { tapAnimation } from '../utils/motion';
 import api from '../api';
 
-const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteIds, refreshKey }) => {
+const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteIds }) => {
     // Basic State
     const [graphData, setGraphData] = useState({ nodes: [], links: [] });
     const [isLoading, setIsLoading] = useState(true);
@@ -15,7 +15,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
     // UI State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isGraphReady, setIsGraphReady] = useState(false);
-    const [renderedKey, setRenderedKey] = useState(0);
+
     const [searchQuery, setSearchQuery] = useState('');
     const [showOrphans, setShowOrphans] = useState(true);
     const [showLabels, setShowLabels] = useState('hover'); // 'hover', 'always', 'never'
@@ -131,7 +131,6 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
 
     // Filter Graph Data
     const filteredGraphData = useMemo(() => {
-        const query = searchQuery.toLowerCase().trim();
         let activeNodes = graphData.nodes;
 
         if (!showOrphans) {
@@ -236,7 +235,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
             }
         }, 150);
         return () => clearTimeout(timer);
-    }, [filteredGraphData]);
+    }, [filteredGraphData, dimensions.width]);
 
     // No more handleZoomEnd logic, the camera is free.
 
@@ -280,7 +279,6 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         const isNeighbor = isHoveredNeighbor(node);
         const isMatch = isNodeMatch(node);
         
-        const isOrphan = node.incoming_count === 0 && node.outgoing_count === 0;
         const radius = 5;
 
         // Draw node circle

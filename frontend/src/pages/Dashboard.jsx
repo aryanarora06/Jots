@@ -246,7 +246,7 @@ const Dashboard = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedTagFilters, debouncedSearchQuery, sortOrder]);
+    }, [selectedTagFilters, debouncedSearchQuery, sortOrder, notes.length]);
 
     // Fetch shared notes function
     const fetchSharedNotes = useCallback(async () => {
@@ -282,7 +282,7 @@ const Dashboard = () => {
         } finally {
             setIsLoadingShared(false);
         }
-    }, [debouncedSearchQuery]);
+    }, [debouncedSearchQuery, sharedNotes.length]);
 
     // Initial tags fetch
     const fetchTags = useCallback(async () => {
@@ -336,7 +336,7 @@ const Dashboard = () => {
         }
     }, [inView, fetchNextPage]);
 
-    const sortNoteList = (noteList) => {
+    const sortNoteList = useCallback((noteList) => {
         return [...noteList].sort((a, b) => {
             if (a.is_favourite && !b.is_favourite) return -1;
             if (!a.is_favourite && b.is_favourite) return 1;
@@ -349,9 +349,9 @@ const Dashboard = () => {
             }
             return new Date(b.updated_at) - new Date(a.updated_at);
         });
-    };
+    }, [sortOrder]);
 
-    const filteredNotes = useMemo(() => sortNoteList(notes), [notes, sortOrder]);
+    const filteredNotes = useMemo(() => sortNoteList(notes), [notes, sortNoteList]);
     const filteredSharedNotes = useMemo(() => {
         const sorted = [...sharedNotes].sort((a, b) => {
             const noteA = a.note;
@@ -1306,9 +1306,9 @@ const Dashboard = () => {
                                 <motion.div key="loading" variants={fadeVariants} initial="hidden" animate="visible" exit="exit" className="flex justify-center items-center h-64">
                                 </motion.div>
                             ) : filteredNotes.length > 0 ? (
-                                <motion.div key="content" variants={fadeVariants} initial="hidden" animate="visible" exit="exit">
+                                <motion.div key={`content-${debouncedSearchQuery}-${sortOrder}-${selectedTagFilters.join(',')}`} variants={fadeVariants} initial="hidden" animate="visible" exit="exit">
                                     <motion.div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1 relative">
-                                        <AnimatePresence mode="wait">
+                                        <AnimatePresence>
                                             {filteredNotes.map((note, idx) => (
                                                 <motion.div
                                                     key={note.id}
@@ -1405,8 +1405,8 @@ const Dashboard = () => {
                                 <motion.div key="loading" variants={fadeVariants} initial="hidden" animate="visible" exit="exit" className="flex justify-center items-center h-64">
                                 </motion.div>
                             ) : filteredSharedNotes.length > 0 ? (
-                                <motion.div key="content" variants={fadeVariants} initial="hidden" animate="visible" exit="exit" className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1">
-                                    <AnimatePresence mode="wait">
+                                <motion.div key={`content-shared-${debouncedSearchQuery}-${sortOrder}-${selectedTagFilters.join(',')}`} variants={fadeVariants} initial="hidden" animate="visible" exit="exit" className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1">
+                                    <AnimatePresence>
                                         {filteredSharedNotes.map((sn, idx) => (
                                             <motion.div
                                                 key={sn.note.id}
@@ -1440,10 +1440,10 @@ const Dashboard = () => {
                             ) : (
                                 <motion.div
                                     key="empty"
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.25 }}
+                                    variants={fadeVariants}
+                                    initial="hidden"
+                                    animate="visible"
+                                    exit="exit"
                                     className="text-center py-24 px-6"
                                 >
                                     <Book className="mx-auto h-12 w-12 text-gray-300 dark:text-gray-700 mb-4" />
@@ -1472,13 +1472,17 @@ const Dashboard = () => {
                             }}
                             className="mx-auto w-full px-4 lg:px-16 pt-4"
                         >
-                            <GraphView 
-                                darkMode={darkMode} 
-                                onNoteClick={(id) => handleWikilinkClick(null, id)}
-                                selectedTagFilters={selectedTagFilters}
-                                activeNoteIds={new Set([...notes.map(n => n.id), ...sharedNotes.map(sn => sn.note.id)])}
-                                refreshKey={refreshKey}
-                            />
+                            <AnimatePresence mode="wait" initial={true}>
+                                <motion.div key="graph-view" variants={fadeVariants} initial="hidden" animate="visible" exit="exit">
+                                    <GraphView 
+                                        darkMode={darkMode} 
+                                        onNoteClick={(id) => handleWikilinkClick(null, id)}
+                                        selectedTagFilters={selectedTagFilters}
+                                        activeNoteIds={new Set([...notes.map(n => n.id), ...sharedNotes.map(sn => sn.note.id)])}
+                                        refreshKey={refreshKey}
+                                    />
+                                </motion.div>
+                            </AnimatePresence>
                         </motion.div>
                     )}
                 </AnimatePresence>

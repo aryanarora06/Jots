@@ -33,32 +33,25 @@ const Login = () => {
     return (
         <div className="min-h-[100dvh] bg-gray-50 dark:bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors relative">
             <ThemeToggle />
-            <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-                    className="flex flex-col items-center"
-                >
-                    <svg viewBox="0 0 24 24" className="h-14 w-14 text-black dark:text-white fill-current" aria-hidden="true">
+            <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                className="sm:mx-auto sm:w-full sm:max-w-md"
+            >
+                <div className="bg-white py-12 px-8 shadow-xl shadow-gray-200/50 dark:shadow-none rounded-none flex flex-col items-center mx-4 sm:mx-0">
+                    
+                    <svg viewBox="0 0 24 24" className="h-14 w-14 text-black fill-current" aria-hidden="true">
                         <path d="M12 2L22 20H2Z" />
                     </svg>
-                    <span className="mt-3 text-3xl font-black tracking-tighter text-black dark:text-white">
+                    <span className="mt-4 text-3xl font-black tracking-tighter text-black">
                         Jots
                     </span>
-                    <p className="mt-4 text-center text-sm sm:text-base text-gray-600 dark:text-gray-400 px-4 max-w-sm leading-relaxed">
+                    <p className="mt-4 text-center text-sm sm:text-base text-gray-600 px-2 max-w-sm leading-relaxed">
                         Your personal networked notebook. Capture thoughts, connect ideas with wikilinks, and explore them through an interactive visual graph.
                     </p>
-                </motion.div>
-            </div>
 
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-                className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
-            >
-                <div className="flex flex-col items-center justify-center space-y-4">
+                    <div className="mt-10 w-full flex flex-col items-center">
                         <AnimatePresence mode="wait">
                         {error && (
                             <motion.div
@@ -66,27 +59,28 @@ const Login = () => {
                                 initial="initial"
                                 animate="animate"
                                 exit="exit"
-                                className="w-full bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 p-3 rounded-xl mb-4"
+                                className="w-full bg-red-50 border border-red-200 p-3 rounded-xl mb-6 text-center"
                             >
-                                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                                <p className="text-sm text-red-600">{error}</p>
                             </motion.div>
                         )}
                         </AnimatePresence>
                         
                         {isLoading ? (
-                            <div className="w-full py-2.5 px-4 rounded-full text-sm font-semibold text-white bg-black dark:bg-white dark:text-black opacity-60 text-center cursor-wait">
+                            <div className="w-full max-w-[280px] py-2.5 px-4 rounded-full text-sm font-semibold text-white bg-black opacity-60 text-center cursor-wait">
                                 Signing in...
                             </div>
                         ) : (
-                            <GoogleLogin
-                                onSuccess={handleGoogleSuccess}
-                                onError={handleGoogleError}
-                                useOneTap
-                                theme={document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline'}
-                                shape="pill"
-                            />
+                            <div className="flex justify-center w-full">
+                                <GoogleLogin
+                                    onSuccess={handleGoogleSuccess}
+                                    onError={handleGoogleError}
+                                    useOneTap
+                                />
+                            </div>
                         )}
                     </div>
+                </div>
             </motion.div>
         </div>
     );
