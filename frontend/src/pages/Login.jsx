@@ -82,6 +82,8 @@ const Login = () => {
                                 onSuccess={handleGoogleSuccess}
                                 onError={handleGoogleError}
                                 useOneTap
+                                theme={document.documentElement.classList.contains('dark') ? 'filled_black' : 'outline'}
+                                shape="pill"
                             />
                         )}
                     </div>
