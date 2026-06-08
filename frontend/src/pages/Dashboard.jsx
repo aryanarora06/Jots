@@ -52,6 +52,10 @@ const Dashboard = () => {
             setShowWelcome(true);
             localStorage.removeItem('showWelcomePopup');
         }
+        if (localStorage.getItem('showHelpPopup') === 'true') {
+            setShowHelp(true);
+            localStorage.removeItem('showHelpPopup');
+        }
     }, []);
 
     // Notes and Pagination state
@@ -1019,13 +1023,14 @@ const Dashboard = () => {
                                     <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">Ctrl K</span>
                                 </div>
                             </div>
-                            <button 
+                            <motion.button 
+                                whileTap={tapAnimation}
                                 onClick={() => setShowHelp(true)}
-                                className="shrink-0 p-2 lg:p-1.5 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                                className="shrink-0 p-2.5 lg:p-2 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors focus:outline-none"
                                 title="How to use Jots"
                             >
-                                <HelpCircle className="h-5 w-5 lg:h-[18px] lg:w-[18px]" />
-                            </button>
+                                <HelpCircle className="h-5 w-5 lg:h-4 lg:w-4" />
+                            </motion.button>
                         </div>
 
                         <div className="shrink-0 flex items-center space-x-1 lg:space-x-2 ml-auto">

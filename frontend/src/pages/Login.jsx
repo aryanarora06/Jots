@@ -46,23 +46,10 @@ const Login = () => {
                     <span className="mt-3 text-3xl font-black tracking-tighter text-black dark:text-white">
                         Jots
                     </span>
+                    <p className="mt-4 text-center text-sm sm:text-base text-gray-600 dark:text-gray-400 px-4 max-w-sm leading-relaxed">
+                        Your personal networked notebook. Capture thoughts, connect ideas with wikilinks, and explore them through an interactive visual graph.
+                    </p>
                 </motion.div>
-                <motion.h2 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1, duration: 0.4 }}
-                    className="mt-6 text-center text-2xl font-bold tracking-tight text-gray-900 dark:text-white"
-                >
-                    Welcome
-                </motion.h2>
-                <motion.p 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.2, duration: 0.4 }}
-                    className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300"
-                >
-                    Sign in or create an account with Google
-                </motion.p>
             </div>
 
             <motion.div 
@@ -91,17 +78,11 @@ const Login = () => {
                                 Signing in...
                             </div>
                         ) : (
-                            <div className="w-full flex justify-center">
-                                <GoogleLogin
-                                    onSuccess={handleGoogleSuccess}
-                                    onError={handleGoogleError}
-                                    useOneTap
-                                    shape="rectangular"
-                                    size="large"
-                                    text="continue_with"
-                                    theme="filled_black"
-                                />
-                            </div>
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={handleGoogleError}
+                                useOneTap
+                            />
                         )}
                     </div>
             </motion.div>

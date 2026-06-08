@@ -61,10 +61,6 @@ const HelpModal = ({ isOpen, onClose }) => {
                                 <X className="w-4 h-4" />
                             </button>
 
-                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-black dark:text-white">
-                                <HelpCircle className="h-6 w-6" />
-                            </div>
-                            
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                                 How to use Jots
                             </h3>
@@ -72,61 +68,61 @@ const HelpModal = ({ isOpen, onClose }) => {
 
                         {/* Content */}
                         <div className="px-6 pb-6 pt-2 overflow-y-auto text-left">
-                            <div className="space-y-6 text-sm text-gray-600 dark:text-gray-300">
+                            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
                                 <div>
-                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-2">
+                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-0.5">
                                         <FileText className="w-4 h-4 text-gray-400" />
                                         Capture your thoughts
                                     </h3>
-                                    <p className="leading-relaxed">Click the <strong>+</strong> button to create a new note. You can write in rich text or Markdown, and add tags to keep your ideas organized.</p>
+                                    <p>Click <strong>+</strong> to write notes and add tags.</p>
                                 </div>
                                 
                                 <div>
-                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-2">
+                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-0.5">
                                         <Link className="w-4 h-4 text-gray-400" />
                                         Connect your ideas
                                     </h3>
-                                    <p className="leading-relaxed">Type <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-mono text-xs border border-gray-200 dark:border-gray-700">[[</code> inside any note to search and link to your other notes. This creates a powerful network of connected thoughts.</p>
+                                    <p>Type <code className="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded font-mono text-xs border border-gray-200 dark:border-gray-700">[[</code> to link to other notes.</p>
                                 </div>
 
                                 <div>
-                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-2">
+                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-0.5">
                                         <Network className="w-4 h-4 text-gray-400" />
                                         Explore the graph
                                     </h3>
-                                    <p className="leading-relaxed">Switch to the <strong>Graph</strong> view to see a beautiful visual web of how all your notes are connected. Click on tags in the sidebar to filter the graph by topic.</p>
+                                    <p>Use <strong>Graph</strong> view to visualize your note network.</p>
                                 </div>
 
                                 <div>
-                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-2">
+                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-0.5">
                                         <Share2 className="w-4 h-4 text-gray-400" />
                                         Share securely
                                     </h3>
-                                    <p className="leading-relaxed">Need to show someone a note? Click the share icon on any note card to generate a public, read-only link. You can even lock it with a password for extra security.</p>
+                                    <p>Generate public links, optionally locked with a password.</p>
                                 </div>
 
                                 <div>
-                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-2">
+                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-0.5">
                                         <Search className="w-4 h-4 text-gray-400" />
-                                        Find anything instantly
+                                        Find instantly
                                     </h3>
-                                    <p className="leading-relaxed">Use the search bar to instantly find notes by title or content. You can also click on tags in the sidebar to filter your view to specific topics.</p>
+                                    <p>Search titles and content or click tags to filter.</p>
                                 </div>
 
                                 <div>
-                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-2">
+                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-0.5">
                                         <Download className="w-4 h-4 text-gray-400" />
                                         Export your work
                                     </h3>
-                                    <p className="leading-relaxed">Open any note and use the export menu to download your work as a Markdown file or a formatted PDF document.</p>
+                                    <p>Download any note as Markdown or PDF.</p>
                                 </div>
 
                                 <div>
-                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-2">
+                                    <h3 className="flex items-center gap-2 font-semibold text-black dark:text-white mb-0.5">
                                         <Smartphone className="w-4 h-4 text-gray-400" />
                                         Install the app
                                     </h3>
-                                    <p className="leading-relaxed">Jots is a Progressive Web App (PWA). You can install it directly to your home screen or desktop for a native experience and offline access.</p>
+                                    <p>Install Jots for a native app experience.</p>
                                 </div>
                             </div>
                         </div>

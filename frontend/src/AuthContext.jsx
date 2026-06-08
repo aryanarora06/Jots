@@ -32,6 +32,11 @@ export const AuthProvider = ({ children }) => {
             const response = await api.post('/api/auth/google/', { credential });
             localStorage.setItem('access', response.data.access);
             localStorage.setItem('refresh', response.data.refresh);
+            
+            if (response.data.is_new_user) {
+                localStorage.setItem('showHelpPopup', 'true');
+            }
+
             setIsAuthenticated(true);
             await fetchUser();
             return { success: true };
