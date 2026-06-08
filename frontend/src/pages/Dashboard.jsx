@@ -9,9 +9,12 @@ import ShareDialog from '../components/ShareDialog';
 import SelectionBar from '../components/SelectionBar';
 import WelcomeModal from '../components/WelcomeModal';
 import HelpModal from '../components/HelpModal';
+import PasswordPromptModal from '../components/PasswordPromptModal';
 import GraphView from '../components/GraphView';
+import { useToast } from '../contexts/ToastContext';
+import { useConfirm } from '../contexts/ConfirmContext';
 import { exportAsMarkdown, exportAllAsZip } from '../utils/exportNote';
-import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download, HelpCircle } from 'lucide-react';
+import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download, HelpCircle, CalendarDays, User } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, tabContentVariants, dropdownVariants, tapAnimation, microSpring } from '../utils/motion';
@@ -31,6 +34,8 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const Dashboard = () => {
     const { logout, user } = useContext(AuthContext);
     const location = useLocation();
+    const toast = useToast();
+    const { confirm } = useConfirm();
     
     // Theme state
     const [darkMode, setDarkMode] = useState(() => {
@@ -74,6 +79,7 @@ const Dashboard = () => {
     const [currentNote, setCurrentNote] = useState(null);
     const [viewNote, setViewNote] = useState(null);
     const [shareNoteInfo, setShareNoteInfo] = useState(null);
+    const [passwordPrompt, setPasswordPrompt] = useState({ isOpen: false, mode: 'add', note: null, error: '' });
 
     // Tab state
     const [activeTab, setActiveTab] = useState('my-notes');
@@ -180,7 +186,7 @@ const Dashboard = () => {
                 searchInputRef.current?.focus();
             } else if (e.altKey && e.key === 'n') {
                 e.preventDefault();
-                if (!isModalOpen && !viewNote && !shareNoteInfo) {
+                if (!isModalOpen && !viewNote && !shareNoteInfo && !passwordPrompt.isOpen) {
                     openCreateModal();
                 }
             }
@@ -188,7 +194,20 @@ const Dashboard = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isModalOpen, viewNote, shareNoteInfo]);
+    }, [isModalOpen, viewNote, shareNoteInfo, passwordPrompt.isOpen]);
+
+    // Prevent body scroll when any modal is open
+    const anyModalOpen = isModalOpen || !!viewNote || !!shareNoteInfo || passwordPrompt.isOpen || showWelcome || showHelp;
+    useEffect(() => {
+        if (anyModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [anyModalOpen]);
 
     // Fetch notes function
     const fetchNotes = useCallback(async () => {
@@ -503,7 +522,7 @@ const Dashboard = () => {
             setReflowingNoteIds(new Set());
             setUnstaggeredNoteIds(new Set());
             console.error('Failed to delete notes:', err);
-            alert('Failed to delete some notes.');
+            toast.error('Failed to delete some notes.');
         }
     };
 
@@ -521,7 +540,7 @@ const Dashboard = () => {
         });
 
         if (skipped > 0) {
-            alert(`${skipped} password-protected note${skipped > 1 ? 's were' : ' was'} skipped.`);
+            toast.info(`${skipped} password-protected note${skipped > 1 ? 's were' : ' was'} skipped.`);
         }
     };
 
@@ -589,7 +608,7 @@ const Dashboard = () => {
             setReflowingNoteIds(new Set());
             setUnstaggeredNoteIds(new Set());
             console.error('Failed to save note:', err);
-            alert('Failed to save note. Please check your inputs.');
+            toast.error('Failed to save note. Please check your inputs.');
         }
     };
 
@@ -620,7 +639,7 @@ const Dashboard = () => {
             setReflowingNoteIds(new Set());
             setUnstaggeredNoteIds(new Set());
             console.error('Failed to delete note:', err);
-            alert('Failed to delete note.');
+            toast.error('Failed to delete note.');
         }
     };
 
@@ -657,30 +676,62 @@ const Dashboard = () => {
             setReflowingNoteIds(new Set());
             setUnstaggeredNoteIds(new Set());
             console.error('Failed to duplicate note:', err);
-            alert('Failed to duplicate note.');
+            toast.error('Failed to duplicate note.');
         }
     };
 
     const handleCopyContent = async (note) => {
         try {
             await navigator.clipboard.writeText(note.content);
-            alert('Content copied to clipboard!');
+            toast.success('Content copied to clipboard!');
         } catch (err) {
             console.error('Failed to copy content:', err);
-            alert('Failed to copy content to clipboard.');
+            toast.error('Failed to copy content to clipboard.');
         }
     };
 
     const handleToggleFavourite = async (note) => {
         try {
+            const currentList = [...filteredNotes];
+            const oldIndex = currentList.findIndex(n => n.id === note.id);
+            
+            const fakeUpdatedNotes = notes.map(n => n.id === note.id ? { ...n, is_favourite: !n.is_favourite } : n);
+            const newList = sortNoteList(fakeUpdatedNotes);
+            const newIndex = newList.findIndex(n => n.id === note.id);
+            
+            const fadingIds = [];
+            if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+                const minIdx = Math.min(oldIndex, newIndex);
+                const maxIdx = Math.max(oldIndex, newIndex);
+                for (let i = minIdx; i <= maxIdx; i++) {
+                    fadingIds.push(currentList[i].id);
+                }
+            }
+
+            if (fadingIds.length > 0) {
+                setReflowingNoteIds(new Set(fadingIds));
+                await wait(REFLOW_FADE_MS);
+            }
+
             const response = await api.patch(`/api/notes/${note.id}/`, {
                 is_favourite: !note.is_favourite
             });
             updateOwnedNote(response.data);
+            
+            if (fadingIds.length > 0) {
+                setUnstaggeredNoteIds(new Set(fadingIds));
+                setTimeout(() => {
+                    setReflowingNoteIds(new Set());
+                    setTimeout(() => setUnstaggeredNoteIds(new Set()), 180);
+                }, REFLOW_FADE_MS);
+            }
+            
             setRefreshKey(prev => prev + 1);
         } catch (err) {
+            setReflowingNoteIds(new Set());
+            setUnstaggeredNoteIds(new Set());
             console.error('Failed to toggle favourite:', err);
-            alert('Failed to update favourite status.');
+            toast.error('Failed to update favourite status.');
         }
     };
 
@@ -711,13 +762,13 @@ const Dashboard = () => {
             setReflowingNoteIds(new Set());
             setUnstaggeredNoteIds(new Set());
             console.error('Failed to remove shared note:', err);
-            alert('Failed to remove note.');
+            toast.error('Failed to remove note.');
         }
     };
 
     const handleCopySharedNote = async (note) => {
         if (note.is_password_protected) {
-            alert('Password protected notes cannot be copied.');
+            toast.error('Password protected notes cannot be copied.');
             return;
         }
 
@@ -741,7 +792,7 @@ const Dashboard = () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } catch (err) {
             console.error('Failed to copy shared note:', err);
-            alert('Failed to copy note.');
+            toast.error('Failed to copy note.');
         }
     };
 
@@ -753,33 +804,40 @@ const Dashboard = () => {
         return response.data;
     };
 
-    const handleSetNotePassword = async (note) => {
-        const password = window.prompt('Enter a password for this note:');
-        if (password === null) return;
-        if (password.trim().length < 4) {
-            alert('Password must be at least 4 characters.');
-            return;
-        }
-
-        try {
-            const response = await api.post(`/api/notes/${note.id}/password/`, { password });
-            updateOwnedNote(response.data);
-        } catch (err) {
-            console.error('Failed to add password protection:', err);
-            alert(err.response?.data?.detail || 'Failed to add password protection.');
-        }
+    const handleSetNotePassword = (note) => {
+        setPasswordPrompt({ isOpen: true, mode: 'add', note, error: '' });
     };
 
-    const handleRemoveNotePassword = async (note) => {
-        const password = window.prompt('Enter the note password to remove protection:');
-        if (password === null) return;
+    const handleRemoveNotePassword = (note) => {
+        setPasswordPrompt({ isOpen: true, mode: 'remove', note, error: '' });
+    };
 
-        try {
-            const response = await api.delete(`/api/notes/${note.id}/password/`, { data: { password } });
-            updateOwnedNote(response.data);
-        } catch (err) {
-            console.error('Failed to remove password protection:', err);
-            alert(err.response?.data?.detail || 'Failed to remove password protection.');
+    const handlePasswordSubmit = async (password) => {
+        const { mode, note } = passwordPrompt;
+        if (!note) return;
+
+        if (mode === 'add') {
+            if (password.trim().length < 4) {
+                setPasswordPrompt(prev => ({ ...prev, error: 'Password must be at least 4 characters.' }));
+                return;
+            }
+            try {
+                const response = await api.post(`/api/notes/${note.id}/password/`, { password });
+                updateOwnedNote(response.data);
+                setPasswordPrompt({ isOpen: false, mode: 'add', note: null, error: '' });
+            } catch (err) {
+                console.error('Failed to add password protection:', err);
+                setPasswordPrompt(prev => ({ ...prev, error: err.response?.data?.detail || 'Failed to add password protection.' }));
+            }
+        } else if (mode === 'remove') {
+            try {
+                const response = await api.delete(`/api/notes/${note.id}/password/`, { data: { password } });
+                updateOwnedNote(response.data);
+                setPasswordPrompt({ isOpen: false, mode: 'remove', note: null, error: '' });
+            } catch (err) {
+                console.error('Failed to remove password protection:', err);
+                setPasswordPrompt(prev => ({ ...prev, error: err.response?.data?.detail || 'Failed to remove password protection.' }));
+            }
         }
     };
 
@@ -795,7 +853,7 @@ const Dashboard = () => {
             });
 
             if (hasSharedNoteWithTag) {
-                alert('Tags from shared notes cannot be deleted.');
+                toast.error('Tags from shared notes cannot be deleted.');
                 return;
             }
 
@@ -806,7 +864,13 @@ const Dashboard = () => {
         }
 
         // Normal tag deletion for my notes
-        if (!window.confirm('Are you sure you want to delete this tag? It will be removed from all your notes.')) return;
+        const isConfirmed = await confirm({
+            title: 'Delete Tag',
+            message: 'Are you sure you want to delete this tag? It will be removed from all your notes.',
+            confirmText: 'Delete Tag',
+            isDestructive: true
+        });
+        if (!isConfirmed) return;
 
         try {
             await api.delete(`/api/tags/${id}/`);
@@ -815,7 +879,7 @@ const Dashboard = () => {
             fetchNotes();
         } catch (err) {
             console.error('Failed to delete tag:', err);
-            alert('Failed to delete tag.');
+            toast.error('Failed to delete tag.');
         }
     };
 
@@ -890,9 +954,9 @@ const Dashboard = () => {
         } catch (err) {
             console.error('Failed to create tag:', err);
             if (err.response?.data?.non_field_errors) {
-                alert(err.response.data.non_field_errors[0]); // e.g. duplicate tag
+                toast.error(err.response.data.non_field_errors[0]); // e.g. duplicate tag
             } else {
-                alert('Failed to create tag.');
+                toast.error('Failed to create tag.');
             }
             return null;
         }
@@ -909,11 +973,11 @@ const Dashboard = () => {
     };
 
     return (
-        <div className="min-h-screen overflow-x-hidden bg-white dark:bg-black transition-colors duration-200 flex flex-col font-sans">
+        <div className="min-h-[100dvh] overflow-x-hidden bg-white dark:bg-black transition-colors duration-200 flex flex-col font-sans">
             {/* Navbar */}
             <header className="bg-white dark:bg-black sticky top-0 z-[60] border-b border-gray-200 dark:border-gray-800 transition-colors duration-200 py-0">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center gap-2 sm:gap-3 h-16">
+                <div className="max-w-7xl mx-auto px-4 lg:px-8">
+                    <div className="flex items-center gap-2 lg:gap-3 h-16">
                         <div className="flex items-center">
                             <button 
                                 onClick={() => {
@@ -925,21 +989,14 @@ const Dashboard = () => {
                             >
                                 <motion.span 
                                     whileTap={tapAnimation}
-                                    className="text-xl sm:text-2xl font-semibold text-black dark:text-white tracking-tight"
+                                    className="text-xl lg:text-2xl font-semibold text-black dark:text-white tracking-tight"
                                 >
                                     ▲ Jots
                                 </motion.span>
                             </button>
-                            <button 
-                                onClick={() => setShowHelp(true)}
-                                className="ml-2 mt-0.5 p-1.5 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
-                                title="How to use Jots"
-                            >
-                                <HelpCircle className="h-[18px] w-[18px]" />
-                            </button>
                         </div>
                         
-                        <div className="min-w-0 flex-1 px-4 sm:px-8 max-w-2xl">
+                        <div className="min-w-0 flex-1 px-4 lg:px-8 max-w-2xl flex items-center gap-1 lg:gap-2">
                             <div className="relative w-full">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <Search className="h-4 w-4 text-gray-400" />
@@ -958,38 +1015,46 @@ const Dashboard = () => {
                                         }
                                     }}
                                 />
-                                <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none hidden sm:flex">
+                                <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none hidden lg:flex">
                                     <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium border border-gray-200 dark:border-gray-700 rounded px-1.5 py-0.5">Ctrl K</span>
                                 </div>
                             </div>
+                            <button 
+                                onClick={() => setShowHelp(true)}
+                                className="shrink-0 p-2 lg:p-1.5 text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                                title="How to use Jots"
+                            >
+                                <HelpCircle className="h-5 w-5 lg:h-[18px] lg:w-[18px]" />
+                            </button>
                         </div>
 
-                        <div className="shrink-0 flex items-center space-x-1 sm:space-x-2 ml-auto">
+                        <div className="shrink-0 flex items-center space-x-1 lg:space-x-2 ml-auto">
                             <motion.button
                                 whileTap={tapAnimation}
                                 onClick={() => exportAllAsZip(notes, sharedNotes)}
-                                className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors"
+                                className="p-2.5 lg:p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors"
                                 title="Download all notes as ZIP"
                             >
-                                <Download className="h-4 w-4" />
+                                <Download className="h-5 w-5 lg:h-4 lg:w-4" />
                             </motion.button>
                             <motion.button
                                 whileTap={tapAnimation}
                                 onClick={() => setDarkMode(!darkMode)}
-                                className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors"
+                                className="p-2.5 lg:p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors"
                             >
-                                {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                                {darkMode ? <Sun className="h-5 w-5 lg:h-4 lg:w-4" /> : <Moon className="h-5 w-5 lg:h-4 lg:w-4" />}
                             </motion.button>
                             <div className="relative" ref={profileMenuRef}>
                                 <motion.button
                                     whileTap={tapAnimation}
                                     onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                                    className="p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors sm:flex sm:items-center sm:px-3"
+                                    className="p-2.5 lg:p-2 rounded-md text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:outline-none transition-colors lg:flex lg:items-center lg:px-3"
                                 >
-                                    <span className="hidden sm:inline text-sm font-medium">
+                                    <span className="hidden lg:inline text-sm font-medium">
                                         {user?.first_name || user?.username || 'Profile'}
                                     </span>
-                                    <ChevronDown className="h-4 w-4 sm:ml-1" />
+                                    <ChevronDown className="hidden lg:block h-4 w-4 ml-1" />
+                                    <User className="lg:hidden h-5 w-5" />
                                 </motion.button>
 
                                 <AnimatePresence>
@@ -1026,16 +1091,16 @@ const Dashboard = () => {
             <main className="flex-1 w-full pb-8 flex flex-col">
                 
             {/* Tabs & Filters Bar - Now sticky to move with header */}
-            <div className="sticky top-16 z-[55] w-full border-b border-gray-200 dark:border-gray-800 bg-white/90 dark:bg-black/90">
-                <div className="mx-auto flex max-w-7xl min-w-0 flex-col gap-3 overflow-visible px-4 py-3 sm:flex-row sm:flex-nowrap sm:items-center sm:gap-4 sm:px-6 lg:px-8">
-                    <div className="flex shrink-0 items-center space-x-6 sm:self-center h-8">
+            <div className="sticky top-16 z-[55] w-full border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-black">
+                <div className="mx-auto flex max-w-7xl min-w-0 flex-col gap-3 overflow-visible px-4 py-3 lg:flex-row lg:flex-nowrap lg:items-center lg:gap-4 lg:px-8">
+                    <div className="flex shrink-0 items-center space-x-6 h-8">
                         <button
                             onClick={() => switchTab('my-notes')}
                             className={`whitespace-nowrap text-sm font-medium tracking-tight transition-colors h-full flex items-center relative ${activeTab === 'my-notes' ? 'text-black dark:text-white' : 'text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white'}`}
                         >
                             My Notes
                             {activeTab === 'my-notes' && (
-                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
+                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-0 lg:bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
                             )}
                         </button>
                         <button
@@ -1044,7 +1109,7 @@ const Dashboard = () => {
                         >
                             Shared with me
                             {activeTab === 'shared-with-me' && (
-                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
+                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-0 lg:bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
                             )}
                         </button>
                         <button
@@ -1053,12 +1118,12 @@ const Dashboard = () => {
                         >
                             Graph
                             {activeTab === 'graph' && (
-                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
+                                <motion.div initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="absolute bottom-0 lg:bottom-[-12px] left-0 right-0 h-[2px] bg-black dark:bg-white" />
                             )}
                         </button>
                     </div>
 
-                    <div className="hidden sm:block w-px self-stretch shrink-0 bg-gray-200 dark:bg-gray-800" aria-hidden="true" />
+                    <div className="hidden lg:block w-px self-stretch shrink-0 bg-gray-200 dark:bg-gray-800" aria-hidden="true" />
 
                     <AnimatePresence mode="wait">
                         <motion.div
@@ -1067,10 +1132,10 @@ const Dashboard = () => {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.15 }}
-                            className="flex min-w-0 w-full flex-nowrap items-center gap-2 sm:h-10 sm:flex-1"
+                            className="flex min-w-0 w-full flex-nowrap items-center gap-2 lg:h-10 lg:flex-1"
                         >
                     <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar self-center">
-                        <div className="flex h-10 flex-nowrap items-center space-x-2 pl-0.5 sm:pl-4">
+                        <div className="flex h-10 flex-nowrap items-center space-x-2 pl-0.5 lg:pl-4">
                             <Filter className="w-4 h-4 shrink-0 text-gray-400" />
                             <button
                                 onClick={() => {
@@ -1109,29 +1174,32 @@ const Dashboard = () => {
                         </div>
                     </div>
 
-                    <div className="hidden sm:block w-px self-stretch shrink-0 bg-gray-200 dark:bg-gray-800" aria-hidden="true" />
+                    <div className="hidden lg:block w-px self-stretch shrink-0 bg-gray-200 dark:bg-gray-800" aria-hidden="true" />
 
                     {activeTab !== 'graph' && (
                         <div className={`relative shrink-0 self-center ${activeTab === 'shared-with-me' ? 'ml-auto' : ''}`} ref={sortMenuRef}>
                         <button
                             type="button"
                             onClick={() => setSortMenuOpen((open) => !open)}
-                            className="h-8 w-[6.25rem] overflow-hidden rounded-md border border-gray-200 bg-white pl-8 pr-7 text-center text-xs font-medium text-gray-700 transition-all hover:border-gray-300 hover:bg-gray-50 focus:border-black focus:ring-1 focus:ring-black focus:outline-none dark:border-gray-800 dark:bg-black dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-900 dark:focus:border-white dark:focus:ring-white sm:w-[9.75rem] sm:pr-8"
+                            className="h-10 lg:h-8 w-[7rem] overflow-hidden rounded-md border border-gray-200 bg-white pl-8 pr-7 text-center text-sm lg:text-xs font-medium text-gray-700 transition-all hover:border-gray-300 hover:bg-gray-50 focus:border-black focus:ring-1 focus:ring-black focus:outline-none dark:border-gray-800 dark:bg-black dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-900 dark:focus:border-white dark:focus:ring-white lg:w-[9.75rem] lg:pr-8"
                             aria-label="Sort notes"
                             aria-expanded={sortMenuOpen}
                             aria-haspopup="listbox"
                         >
                             <span className="block truncate">
-                                <span className="sm:hidden">
-                                    {SORT_OPTIONS.find((o) => o.value === sortOrder)?.shortLabel}
-                                </span>
-                                <span className="hidden sm:inline">
-                                    {SORT_OPTIONS.find((o) => o.value === sortOrder)?.label}
+                                <span className="flex items-center">
+                                    <span className="hidden lg:inline text-gray-500 mr-1.5">Sort by:</span>
+                                    <span className="lg:hidden font-semibold text-gray-900 dark:text-gray-100">
+                                        {SORT_OPTIONS.find((o) => o.value === sortOrder)?.shortLabel}
+                                    </span>
+                                    <span className="hidden lg:inline font-semibold text-gray-900 dark:text-gray-100">
+                                        {SORT_OPTIONS.find((o) => o.value === sortOrder)?.label}
+                                    </span>
                                 </span>
                             </span>
                         </button>
-                        <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
-                        <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400 transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
+                        <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 lg:h-3.5 lg:w-3.5 -translate-y-1/2 text-gray-400" />
+                        <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 lg:h-3.5 lg:w-3.5 -translate-y-1/2 text-gray-400 transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
                         <AnimatePresence>
                         {sortMenuOpen && (
                             <motion.div
@@ -1170,13 +1238,13 @@ const Dashboard = () => {
                     )}
 
                     {activeTab !== 'shared-with-me' && (
-                        <div className={`flex shrink-0 self-center items-center gap-2 ${activeTab === 'graph' ? 'ml-auto' : ''}`}>
+                        <div className={`hidden lg:flex shrink-0 self-center items-center gap-2 ${activeTab === 'graph' ? 'ml-auto' : ''}`}>
                             <motion.button
                                 whileTap={tapAnimation}
                                 onClick={handleDailyNote}
                                 className="inline-flex h-8 items-center px-3 text-xs font-medium rounded-md text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:text-black dark:text-gray-300 dark:bg-black dark:border-gray-800 dark:hover:bg-gray-900 dark:hover:text-white focus:outline-none transition-all group relative"
                             >
-                                <Sun className="h-3.5 w-3.5 mr-1.5" />
+                                <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
                                 Daily Note
                             </motion.button>
                             <motion.button
@@ -1200,7 +1268,7 @@ const Dashboard = () => {
             {/* Tab Content Area */}
             <div className="w-full">
                 {error && (
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6">
+                    <div className="max-w-7xl mx-auto px-4 lg:px-8 pt-6">
                         <div className="bg-red-50 dark:bg-red-900/30 border-l-4 border-red-500 p-4 mb-6 mt-6 rounded-r-md animate-fade-in-up">
                             <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
                         </div>
@@ -1220,7 +1288,7 @@ const Dashboard = () => {
                             onAnimationComplete={(definition) => {
                                 if (definition === 'animate') unlockTabAreaHeight();
                             }}
-                            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6"
+                            className="max-w-7xl mx-auto px-4 lg:px-8 pt-6"
                         >
                             {isLoading ? (
                                 <div className="flex justify-center items-center h-64">
@@ -1315,7 +1383,7 @@ const Dashboard = () => {
                             onAnimationComplete={(definition) => {
                                 if (definition === 'animate') unlockTabAreaHeight();
                             }}
-                            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6"
+                            className="max-w-7xl mx-auto px-4 lg:px-8 pt-6"
                         >
                             {isLoadingShared ? (
                                 <div className="flex justify-center items-center h-64">
@@ -1383,7 +1451,7 @@ const Dashboard = () => {
                             onAnimationComplete={(definition) => {
                                 if (definition === 'animate') unlockTabAreaHeight();
                             }}
-                            className="mx-auto w-full px-8 sm:px-12 lg:px-24 pt-4 sm:pt-6"
+                            className="mx-auto w-full px-4 lg:px-16 pt-4"
                         >
                             <GraphView 
                                 darkMode={darkMode} 
@@ -1398,6 +1466,28 @@ const Dashboard = () => {
                 </div>
             </div>
             </main>
+
+            {/* Mobile FAB */}
+            {activeTab !== 'shared-with-me' && (
+                <div className="lg:hidden fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+                    <motion.button
+                        whileTap={tapAnimation}
+                        onClick={handleDailyNote}
+                        className="flex h-14 w-14 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                        aria-label="Daily Note"
+                    >
+                        <CalendarDays className="h-6 w-6" />
+                    </motion.button>
+                    <motion.button
+                        whileTap={tapAnimation}
+                        onClick={openCreateModal}
+                        className="flex h-14 w-14 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-lg focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                        aria-label="New Note"
+                    >
+                        <Plus className="h-6 w-6" />
+                    </motion.button>
+                </div>
+            )}
 
             <NoteModal 
                 isOpen={isModalOpen}
@@ -1432,6 +1522,14 @@ const Dashboard = () => {
                 isOpen={!!shareNoteInfo}
                 onClose={() => setShareNoteInfo(null)}
                 note={shareNoteInfo}
+            />
+
+            <PasswordPromptModal
+                isOpen={passwordPrompt.isOpen}
+                onClose={() => setPasswordPrompt(prev => ({ ...prev, isOpen: false }))}
+                onSubmit={handlePasswordSubmit}
+                mode={passwordPrompt.mode}
+                error={passwordPrompt.error}
             />
 
             <SelectionBar

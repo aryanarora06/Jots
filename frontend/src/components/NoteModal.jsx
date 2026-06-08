@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Tag as TagIcon, Image as ImageIcon } from 'lucide-react';
 import { modalBackdropVariants, modalPanelVariants, tapAnimation } from '../utils/motion';
 import api from '../api';
+import { useToast } from '../contexts/ToastContext';
 import {
   MDXEditor,
   headingsPlugin,
@@ -39,21 +40,21 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
     const formRef = useRef(null);
     const newTagInputRef = useRef(null);
 
+    const toast = useToast();
 
     
     useEffect(() => {
         if (isOpen) {
             setIsDark(document.documentElement.classList.contains('dark'));
-
             
             // Prevent background scrolling
-            document.body.style.overflow = 'hidden';
+            document.documentElement.classList.add('modal-open');
         } else {
-            document.body.style.overflow = '';
+            document.documentElement.classList.remove('modal-open');
         }
         
         return () => {
-            document.body.style.overflow = '';
+            document.documentElement.classList.remove('modal-open');
         };
     }, [isOpen]);
 
@@ -146,9 +147,9 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
             });
             return response.data.url;
         } catch (error) {
-            console.error('Image upload failed:', error);
-            alert('Failed to upload image. Please try again.');
-            return '';
+            console.error('Error uploading image:', error);
+            toast.error('Failed to upload image. Please try again.');
+            throw error;
         }
     };
 
@@ -210,9 +211,9 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
                 onClick={onClose}
             />
 
-            <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
+            <div className="flex min-h-full items-center justify-center p-0 lg:p-4">
                 <motion.div
-                    className="relative flex max-h-[calc(100vh-2rem)] w-full max-w-2xl transform flex-col overflow-hidden rounded-lg bg-white dark:bg-black shadow-2xl border border-gray-200 dark:border-gray-800"
+                    className="relative flex h-[100dvh] lg:h-auto lg:max-h-[calc(100vh-2rem)] w-full max-w-2xl transform flex-col overflow-hidden lg:rounded-lg bg-white dark:bg-black lg:shadow-2xl lg:border border-gray-200 dark:border-gray-800"
                     variants={modalPanelVariants}
                     initial="initial"
                     animate="animate"
@@ -233,7 +234,7 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
                     </div>
 
                     <form ref={formRef} onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-                        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+                        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 lg:px-6">
                             <div>
                                 <input
                                     type="text"

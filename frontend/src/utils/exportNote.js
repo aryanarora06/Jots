@@ -170,8 +170,7 @@ export const exportAsPdf = (note) => {
 
     const printWindow = window.open('', '_blank', 'width=800,height=900');
     if (!printWindow) {
-        alert('Please allow pop-ups to export as PDF.');
-        return;
+        throw new Error('Please allow pop-ups to export as PDF.');
     }
     printWindow.document.write(htmlDoc);
     printWindow.document.close();

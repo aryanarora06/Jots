@@ -226,7 +226,8 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 setTimeout(() => {
                     if (graphRef.current) {
                         // Smoothly animate the camera to frame the new nodes (like clicking Restore View)
-                        graphRef.current.zoomToFit(400, 180, () => true);
+                        const padding = dimensions.width < 600 ? 35 : 120;
+                        graphRef.current.zoomToFit(400, padding, () => true);
                         setIsGraphReady(true);
                     }
                 }, 100);
@@ -311,7 +312,25 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = isHovered || isMatch ? colors.text : colors.textDim;
-            ctx.fillText(node.title, node.x, node.y + radius + 2);
+            
+            const words = (node.title || '').split(' ');
+            let line = '';
+            let currentY = node.y + radius + 2;
+            const lineHeight = fontSize * 1.2;
+            
+            for (let i = 0; i < words.length; i++) {
+                const testLine = line + words[i] + ' ';
+                if (testLine.length > 20 && i > 0) {
+                    ctx.fillText(line.trim(), node.x, currentY);
+                    line = words[i] + ' ';
+                    currentY += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            if (line.trim()) {
+                ctx.fillText(line.trim(), node.x, currentY);
+            }
         }
         
         ctx.globalAlpha = 1; // Reset alpha
@@ -356,7 +375,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
             
             {/* Top Bar Overlay */}
             <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start pointer-events-none">
-                <div className="flex items-center gap-3 text-xs font-medium bg-white/90 dark:bg-black/90 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-800 pointer-events-auto shadow-sm">
+                <div className="flex items-center gap-3 text-xs font-medium bg-white dark:bg-black px-3 py-2 rounded-md border border-gray-200 dark:border-gray-800 pointer-events-auto shadow-sm">
                     <span>{filteredGraphData.nodes.length} nodes</span>
                     <span className="text-gray-300 dark:text-gray-700">|</span>
                     <span>{filteredGraphData.links.length} edges</span>
@@ -366,7 +385,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                     whileTap={tapAnimation}
                     ref={settingsButtonRef}
                     onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                    className="p-2 bg-white/90 dark:bg-black/90 rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors"
+                    className="p-2 bg-white dark:bg-black rounded-md border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors"
                 >
                     <Settings2 className="w-4 h-4 text-black dark:text-white" />
                 </motion.button>
@@ -377,11 +396,12 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 whileTap={tapAnimation}
                 onClick={() => {
                     if (graphRef.current) {
-                        // Use a larger padding (180px) so the edge nodes and labels are safely within the screen bounds
-                        graphRef.current.zoomToFit(400, 180, () => true);
+                        // Use a responsive padding so the edge nodes and labels are safely within the screen bounds
+                        const padding = dimensions.width < 600 ? 35 : 120;
+                        graphRef.current.zoomToFit(400, padding, () => true);
                     }
                 }}
-                className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-4 py-2 bg-white/90 dark:bg-black/90 rounded-full border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors text-black dark:text-white text-sm font-medium"
+                className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-4 py-2 bg-white dark:bg-black rounded-full border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors text-black dark:text-white text-sm font-medium"
             >
                 <Focus className="w-4 h-4" />
                 Restore View
@@ -396,7 +416,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.15, ease: "easeOut" }}
-                        className="absolute top-14 right-3 z-20 w-72 max-h-[80%] overflow-y-auto bg-white/95 dark:bg-black/95 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl p-4 text-sm"
+                        className="absolute top-14 right-3 z-20 w-72 max-h-[80%] overflow-y-auto bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl p-4 text-sm"
                     >
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-semibold text-black dark:text-white">Graph Settings</h3>

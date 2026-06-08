@@ -33,6 +33,17 @@ const PasswordPromptModal = ({ isOpen, onClose, onSubmit, mode, error }) => {
         };
     }, [isOpen, onClose]);
 
+    useEffect(() => {
+        if (isOpen) {
+            document.documentElement.classList.add('modal-open');
+        } else {
+            document.documentElement.classList.remove('modal-open');
+        }
+        return () => {
+            document.documentElement.classList.remove('modal-open');
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const handleSubmit = (e) => {
@@ -45,13 +56,19 @@ const PasswordPromptModal = ({ isOpen, onClose, onSubmit, mode, error }) => {
     return (
         <AnimatePresence>
             {isOpen && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6 bg-black/40 dark:bg-black/60">
+                <motion.div 
+                    className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                >
                     <motion.div
                         variants={modalBackdropVariants}
                         initial="initial"
                         animate="animate"
                         exit="exit"
-                        className="absolute inset-0"
+                        className="absolute inset-0 bg-black/40 dark:bg-black/60"
                         onClick={onClose}
                     />
                     <motion.div
@@ -91,7 +108,7 @@ const PasswordPromptModal = ({ isOpen, onClose, onSubmit, mode, error }) => {
                                     autoFocus
                                 />
                                 {error && (
-                                    <p className="mt-2 text-sm font-medium text-red-600 dark:text-red-400 text-left">{error}</p>
+                                    <p className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100 text-left">{error}</p>
                                 )}
                                 <div className="mt-6 flex gap-3">
                                     <motion.button
@@ -114,7 +131,7 @@ const PasswordPromptModal = ({ isOpen, onClose, onSubmit, mode, error }) => {
                             </form>
                         </div>
                     </motion.div>
-                </div>
+                </motion.div>
             )}
         </AnimatePresence>
     );

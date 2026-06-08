@@ -7,6 +7,8 @@ import remarkBreaks from 'remark-breaks';
 import { preprocessContent, createMarkdownComponents } from '../utils/markdownUtils.jsx';
 import { exportAsMarkdown, exportAsHtml, exportAsPdf } from '../utils/exportNote.js';
 import { dropdownVariants, tapAnimation, microSpring } from '../utils/motion';
+import { useConfirm } from '../contexts/ConfirmContext';
+import { useToast } from '../contexts/ToastContext';
 import WordCount from './WordCount';
 
 const formatDate = (dateString) => {
@@ -18,6 +20,8 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
     const isLocked = note.is_password_protected;
     const [isVisible, setIsVisible] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
+    const { confirm } = useConfirm();
+    const toast = useToast();
     const cardRef = useRef(null);
     const exportMenuRef = useRef(null);
 
@@ -62,11 +66,17 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
         if (onEdit) onEdit(note);
     }, [onEdit, note]);
 
-    const handleDelete = useCallback(() => {
-        if (window.confirm(isShared ? 'Remove this shared note from your view?' : 'Are you sure you want to delete this note?')) {
+    const handleDelete = useCallback(async () => {
+        const isConfirmed = await confirm({
+            title: isShared ? 'Remove Shared Note' : 'Delete Note',
+            message: isShared ? 'Remove this shared note from your view?' : 'Are you sure you want to delete this note?',
+            confirmText: isShared ? 'Remove' : 'Delete',
+            isDestructive: true
+        });
+        if (isConfirmed) {
             onDelete(note.id);
         }
-    }, [isShared, onDelete, note.id]);
+    }, [isShared, onDelete, note.id, confirm]);
 
     const handleCopy = useCallback(() => {
         if (onCopy) onCopy(note);
@@ -108,8 +118,8 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                     className={`absolute top-3 right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border transition-colors duration-200 ${
                         isSelected
                             ? 'border-black bg-black text-white dark:bg-white dark:border-white dark:text-black'
-                            : `border-gray-300 dark:border-gray-600 bg-white/90 dark:bg-black/90 text-transparent hover:border-gray-500 dark:hover:border-gray-400 ${
-                                hasSelection ? 'opacity-100' : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
+                            : `border-gray-300 dark:border-gray-600 bg-white dark:bg-black text-transparent hover:border-gray-500 dark:hover:border-gray-400 ${
+                                hasSelection ? 'opacity-100' : 'opacity-100 lg:opacity-0 lg:group-hover:opacity-100'
                             }`
                     } ${isSelected ? 'opacity-100' : ''}`}
                     title={isSelected ? 'Deselect note' : 'Select note'}
@@ -204,73 +214,73 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                 )}
             </div>
             
-            <div className="px-5 py-3.5 border-t border-gray-100 dark:border-gray-800 flex flex-nowrap items-center justify-between gap-3 mt-auto overflow-hidden">
-                <div className="flex items-center gap-2">
+            <div className="px-4 lg:px-5 py-3 lg:py-3.5 border-t border-gray-100 dark:border-gray-800 flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-2 gap-x-3 mt-auto overflow-visible">
+                <div className="flex items-center gap-2 shrink-0">
                     <div className="text-xs text-gray-600 dark:text-gray-400 font-medium whitespace-nowrap">
                         {formatDate(note.updated_at)}
                     </div>
                     <span className="text-xs text-gray-300 dark:text-gray-600" aria-hidden="true">|</span>
                     <WordCount note={note} className="whitespace-nowrap" />
                 </div>
-                <div className="flex flex-nowrap overflow-x-auto gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200 scrollbar-hide flex-shrink-0">
+                <div className="flex flex-wrap lg:flex-nowrap gap-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200 w-full lg:w-auto justify-start lg:justify-end -ml-1.5 lg:ml-0">
                     {onCopyContent && !note.is_password_protected && (
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={(e) => { e.stopPropagation(); handleCopyContent(); }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Copy content to clipboard"
                         >
-                            <ClipboardCopy className="w-3.5 h-3.5" />
+                            <ClipboardCopy className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                         </motion.button>
                     )}
                     {isShared && onCopy && !note.is_password_protected && (
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Copy to my notes"
                         >
-                            <Copy className="w-3.5 h-3.5" />
+                            <Copy className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                         </motion.button>
                     )}
                     {!isShared && onDuplicate && (
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={(e) => { e.stopPropagation(); handleDuplicate(); }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Duplicate note"
                         >
-                            <Files className="w-3.5 h-3.5" />
+                            <Files className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                         </motion.button>
                     )}
                     {!isShared && onShare && (
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={(e) => { e.stopPropagation(); handleShare(); }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Share note"
                         >
-                            <Share2 className="w-3.5 h-3.5" />
+                            <Share2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                         </motion.button>
                     )}
                     {!isShared && onSetPassword && !note.is_password_protected && (
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={(e) => { e.stopPropagation(); onSetPassword(note); }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Add password protection"
                         >
-                            <KeyRound className="w-3.5 h-3.5" />
+                            <KeyRound className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                         </motion.button>
                     )}
                     {!isShared && onRemovePassword && note.is_password_protected && (
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={(e) => { e.stopPropagation(); onRemovePassword(note); }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Remove password protection"
                         >
-                            <ShieldOff className="w-3.5 h-3.5" />
+                            <ShieldOff className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                         </motion.button>
                     )}
                     {!isLocked && (
@@ -278,10 +288,10 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                             <motion.button
                                 whileTap={tapAnimation}
                                 onClick={(e) => { e.stopPropagation(); setShowExportMenu(prev => !prev); }}
-                                className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                                className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                                 title="Export note"
                             >
-                                <Download className="w-3.5 h-3.5" />
+                                <Download className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                             </motion.button>
                             <AnimatePresence>
                             {showExportMenu && (
@@ -307,7 +317,15 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                                         HTML
                                     </button>
                                     <button
-                                        onClick={(e) => { e.stopPropagation(); exportAsPdf(note); setShowExportMenu(false); }}
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            try {
+                                                exportAsPdf(note); 
+                                            } catch(err) {
+                                                toast.error(err.message);
+                                            }
+                                            setShowExportMenu(false); 
+                                        }}
                                         className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                     >
                                         <FileType className="w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -322,19 +340,19 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={(e) => { e.stopPropagation(); handleEdit(); }}
-                            className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
+                            className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors"
                             title="Edit note"
                         >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                         </motion.button>
                     )}
                     <motion.button
                         whileTap={tapAnimation}
                         onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-                        className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
+                        className="p-2 lg:p-1.5 text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors"
                         title={isShared ? "Remove shared note" : "Delete note"}
                     >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                     </motion.button>
                 </div>
             </div>

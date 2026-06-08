@@ -7,6 +7,8 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { preprocessContent, createMarkdownComponents } from '../utils/markdownUtils.jsx';
 import { exportAsMarkdown, exportAsHtml, exportAsPdf } from '../utils/exportNote.js';
+import { useConfirm } from '../contexts/ConfirmContext';
+import { useToast } from '../contexts/ToastContext';
 import WordCount from './WordCount';
 import BacklinksPanel from './BacklinksPanel';
 
@@ -16,17 +18,19 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
     const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
     const [unlockedNote, setUnlockedNote] = useState(null);
     const [showExportMenu, setShowExportMenu] = useState(false);
+    const { confirm } = useConfirm();
+    const toast = useToast();
     const exportMenuRef = useRef(null);
 
     // Prevent background scrolling when modal is open
     useEffect(() => {
         if (isOpen) {
-            document.body.style.overflow = 'hidden';
+            document.documentElement.classList.add('modal-open');
         } else {
-            document.body.style.overflow = '';
+            document.documentElement.classList.remove('modal-open');
         }
         return () => {
-            document.body.style.overflow = '';
+            document.documentElement.classList.remove('modal-open');
         };
     }, [isOpen]);
 
@@ -105,11 +109,11 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                 onClick={onClose}
             />
 
-            <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
+            <div className="flex min-h-full items-center justify-center p-0 lg:p-6">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={note.id}
-                        className="relative w-full max-w-4xl transform rounded-lg bg-white dark:bg-black shadow-2xl shadow-black/10 dark:shadow-black/60 border border-gray-200 dark:border-gray-800"
+                        className="relative w-full max-w-4xl transform min-h-[100dvh] lg:min-h-0 lg:rounded-lg bg-white dark:bg-black lg:shadow-2xl shadow-black/10 dark:shadow-black/60 lg:border border-gray-200 dark:border-gray-800 flex flex-col"
                         variants={modalPanelVariants}
                         initial="initial"
                         animate="animate"
@@ -253,7 +257,14 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                                             </motion.button>
                                             <motion.button
                                                 whileTap={tapAnimation}
-                                                onClick={() => { exportAsPdf(displayNote); setShowExportMenu(false); }}
+                                                onClick={() => { 
+                                                    try {
+                                                        exportAsPdf(displayNote); 
+                                                    } catch(err) {
+                                                        toast.error(err.message);
+                                                    }
+                                                    setShowExportMenu(false); 
+                                                }}
                                                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                                             >
                                                 <FileType className="w-4 h-4 text-gray-400 dark:text-gray-500" />
@@ -279,8 +290,14 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                             )}
                             <motion.button
                                 whileTap={tapAnimation}
-                                onClick={() => {
-                                    if (window.confirm(note.isShared ? 'Remove this shared note from your view?' : 'Are you sure you want to delete this note?')) {
+                                onClick={async () => {
+                                    const isConfirmed = await confirm({
+                                        title: note.isShared ? 'Remove Shared Note' : 'Delete Note',
+                                        message: note.isShared ? 'Remove this shared note from your view?' : 'Are you sure you want to delete this note?',
+                                        confirmText: note.isShared ? 'Remove' : 'Delete',
+                                        isDestructive: true
+                                    });
+                                    if (isConfirmed) {
                                         if (note.isShared && onRemoveShared) onRemoveShared();
                                         else if (onDelete) {
                                             onClose();
@@ -296,7 +313,7 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                         </div>
                     </div>
 
-                    <div className="px-6 py-8 sm:px-10 overflow-y-auto max-h-[60vh] sm:max-h-[70vh]">
+                    <div className="px-6 py-8 lg:px-10 overflow-y-auto flex-1 lg:max-h-[70vh]">
                         <AnimatePresence mode="wait">
                             {isLocked ? (
                                 <motion.form

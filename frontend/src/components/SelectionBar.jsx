@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Trash2, Download } from 'lucide-react';
 import { slideUpVariants, tapAnimation, microSpring } from '../utils/motion';
 
+import { useConfirm } from '../contexts/ConfirmContext';
+
 const SelectionBar = ({ count, onDelete, onDownload, isShared }) => {
+    const { confirm } = useConfirm();
+
     return (
         <AnimatePresence>
             {count > 0 && (
@@ -35,11 +39,17 @@ const SelectionBar = ({ count, onDelete, onDownload, isShared }) => {
                             <Download className="w-4 h-4" />
                         </motion.button>
                         <motion.button
-                            onClick={() => {
+                            onClick={async () => {
                                 const message = isShared
                                     ? `Remove ${count} shared note${count > 1 ? 's' : ''} from your view?`
                                     : `Are you sure you want to delete ${count} note${count > 1 ? 's' : ''}?`;
-                                if (window.confirm(message)) {
+                                const isConfirmed = await confirm({
+                                    title: isShared ? 'Remove Shared Notes' : 'Delete Selected Notes',
+                                    message,
+                                    confirmText: isShared ? 'Remove' : 'Delete',
+                                    isDestructive: true
+                                });
+                                if (isConfirmed) {
                                     onDelete();
                                 }
                             }}

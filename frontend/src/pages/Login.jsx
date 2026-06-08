@@ -31,7 +31,7 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors relative">
+        <div className="min-h-[100dvh] bg-gray-50 dark:bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors relative">
             <ThemeToggle />
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
                 <motion.div

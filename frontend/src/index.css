@@ -296,6 +296,12 @@ body > div[data-radix-popper-content-wrapper] {
     z-index: 99999 !important;
 }
 
+/* Bulletproof modal scrolling lock */
+html.modal-open,
+html.modal-open body {
+    overflow: hidden !important;
+}
+
 /* Prevent Radix UI from shifting the background */
 body, html {
     padding-right: 0 !important;
@@ -304,9 +310,7 @@ body, html {
 }
 
 body[data-scroll-locked] {
-    overflow: visible !important;
-    overflow-x: hidden !important;
-    overflow-y: scroll !important;
+    overflow: hidden !important;
 }
 
 /* Bulletproof Radix UI scroll lock override */
