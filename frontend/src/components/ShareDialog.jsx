@@ -94,7 +94,7 @@ const ShareDialog = ({ isOpen, onClose, note }) => {
     };
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {isOpen && note && (
         <motion.div 
             key="share-dialog" 

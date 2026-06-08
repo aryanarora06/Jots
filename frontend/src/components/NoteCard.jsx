@@ -293,7 +293,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                             >
                                 <Download className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
                             </motion.button>
-                            <AnimatePresence>
+                            <AnimatePresence mode="wait">
                             {showExportMenu && (
                                 <motion.div
                                     variants={dropdownVariants}

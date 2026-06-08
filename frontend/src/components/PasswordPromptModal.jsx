@@ -54,7 +54,7 @@ const PasswordPromptModal = ({ isOpen, onClose, onSubmit, mode, error }) => {
     const isAdd = mode === 'add';
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {isOpen && (
                 <motion.div 
                     className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6"

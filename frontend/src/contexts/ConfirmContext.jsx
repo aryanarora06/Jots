@@ -62,7 +62,7 @@ export const ConfirmProvider = ({ children }) => {
     return (
         <ConfirmContext.Provider value={{ confirm }}>
             {children}
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
                 {confirmState.isOpen && (
                     <motion.div 
                         className="fixed inset-0 z-[300] flex items-center justify-center p-4"

@@ -59,7 +59,7 @@ const Login = () => {
                 className="mt-8 sm:mx-auto sm:w-full sm:max-w-md"
             >
                 <div className="flex flex-col items-center justify-center space-y-4">
-                        <AnimatePresence>
+                        <AnimatePresence mode="wait">
                         {error && (
                             <motion.div
                                 variants={slideUpVariants}

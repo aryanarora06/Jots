@@ -53,7 +53,7 @@ const BacklinksPanel = ({ noteId, onNoteClick }) => {
                 </svg>
             </motion.button>
 
-            <AnimatePresence initial={false}>
+            <AnimatePresence initial={false} mode="wait">
                 {isExpanded && (
                     <motion.div
                         initial={{ opacity: 0 }}

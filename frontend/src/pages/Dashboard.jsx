@@ -17,7 +17,7 @@ import { exportAsMarkdown, exportAllAsZip } from '../utils/exportNote';
 import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download, HelpCircle, CalendarDays, User } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cardVariants, tabContentVariants, dropdownVariants, tapAnimation, microSpring } from '../utils/motion';
+import { cardVariants, tabContentVariants, dropdownVariants, tapAnimation } from '../utils/motion';
 
 const SORT_OPTIONS = [
     { value: 'recent', label: 'Most recent', shortLabel: 'Recent' },
@@ -1062,7 +1062,7 @@ const Dashboard = () => {
                                     <User className="lg:hidden h-5 w-5" />
                                 </motion.button>
 
-                                <AnimatePresence>
+                                <AnimatePresence mode="wait">
                                     {profileMenuOpen && (
                                         <motion.div
                                             variants={dropdownVariants}
@@ -1205,7 +1205,7 @@ const Dashboard = () => {
                         </button>
                         <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 lg:h-3.5 lg:w-3.5 -translate-y-1/2 text-gray-400" />
                         <ChevronDown className={`pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 lg:h-3.5 lg:w-3.5 -translate-y-1/2 text-gray-400 transition-transform ${sortMenuOpen ? 'rotate-180' : ''}`} />
-                        <AnimatePresence>
+                        <AnimatePresence mode="wait">
                         {sortMenuOpen && (
                             <motion.div
                                 variants={dropdownVariants}
@@ -1295,13 +1295,14 @@ const Dashboard = () => {
                             }}
                             className="max-w-7xl mx-auto px-4 lg:px-8 pt-6"
                         >
+                            <AnimatePresence mode="wait">
                             {isLoading ? (
-                                <div className="flex justify-center items-center h-64">
-                                </div>
+                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex justify-center items-center h-64">
+                                </motion.div>
                             ) : filteredNotes.length > 0 ? (
-                                <>
+                                <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                                     <motion.div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1 relative">
-                                        <AnimatePresence>
+                                        <AnimatePresence mode="wait">
                                             {filteredNotes.map((note, idx) => (
                                                 <motion.div
                                                     key={note.id}
@@ -1347,10 +1348,11 @@ const Dashboard = () => {
                                             )}
                                         </div>
                                     )}
-                                </>
+                                </motion.div>
                             ) : (
                                 <motion.div
-                                    initial={animateCardEntrance ? { opacity: 0 } : false}
+                                    key="empty"
+                                    initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{ duration: 0.25 }}
                                     className="text-center py-24 px-6"
@@ -1374,6 +1376,7 @@ const Dashboard = () => {
                                     )}
                                 </motion.div>
                             )}
+                            </AnimatePresence>
                         </motion.div>
                     )}
 
@@ -1390,12 +1393,13 @@ const Dashboard = () => {
                             }}
                             className="max-w-7xl mx-auto px-4 lg:px-8 pt-6"
                         >
+                            <AnimatePresence mode="wait">
                             {isLoadingShared ? (
-                                <div className="flex justify-center items-center h-64">
-                                </div>
+                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex justify-center items-center h-64">
+                                </motion.div>
                             ) : filteredSharedNotes.length > 0 ? (
-                                <motion.div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1">
-                                    <AnimatePresence>
+                                <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6 pt-1">
+                                    <AnimatePresence mode="wait">
                                         {filteredSharedNotes.map((sn, idx) => (
                                             <motion.div
                                                 key={sn.note.id}
@@ -1428,7 +1432,8 @@ const Dashboard = () => {
                                 </motion.div>
                             ) : (
                                 <motion.div
-                                    initial={animateCardEntrance ? { opacity: 0 } : false}
+                                    key="empty"
+                                    initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     transition={{ duration: 0.25 }}
                                     className="text-center py-24 px-6"
@@ -1442,6 +1447,7 @@ const Dashboard = () => {
                                     </p>
                                 </motion.div>
                             )}
+                            </AnimatePresence>
                         </motion.div>
                     )}
 

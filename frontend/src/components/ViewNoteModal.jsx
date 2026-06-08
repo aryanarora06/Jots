@@ -90,7 +90,7 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
     };
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {isOpen && note && (
         <motion.div
             key="view-note-modal"
@@ -230,7 +230,7 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
                                     >
                                         <Download className="w-4 h-4 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white" />
                                     </motion.button>
-                                    <AnimatePresence>
+                                    <AnimatePresence mode="wait">
                                     {showExportMenu && (
                                         <motion.div
                                             variants={dropdownVariants}

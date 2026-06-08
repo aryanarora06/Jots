@@ -408,7 +408,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
             </motion.button>
 
             {/* Obsidian Settings Panel Overlay */}
-            <AnimatePresence>
+            <AnimatePresence mode="wait">
                 {isSettingsOpen && (
                     <motion.div
                         ref={settingsRef}

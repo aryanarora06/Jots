@@ -192,7 +192,7 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
     };
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {isOpen && (
         <motion.div 
             key="note-modal" 

@@ -97,7 +97,7 @@ export default function WikilinkAutocomplete({ onSelect }) {
     }, [query, results, selectedIndex, onSelect]);
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {query !== null && pos && results.length > 0 && (
                 <motion.div 
                     initial={{ opacity: 0, y: -4, scale: 0.98 }}

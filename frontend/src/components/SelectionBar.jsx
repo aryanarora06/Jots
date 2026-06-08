@@ -9,7 +9,7 @@ const SelectionBar = ({ count, onDelete, onDownload, isShared }) => {
     const { confirm } = useConfirm();
 
     return (
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
             {count > 0 && (
                 <motion.div
                     key="selection-bar"

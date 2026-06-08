@@ -40,7 +40,7 @@ export const ToastProvider = ({ children }) => {
         <ToastContext.Provider value={{ success, error, info, removeToast }}>
             {children}
             <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[200] flex flex-col gap-2 pointer-events-none w-full max-w-sm px-4">
-                <AnimatePresence>
+                <AnimatePresence mode="wait">
                     {toasts.map(toast => (
                         <motion.div
                             key={toast.id}
