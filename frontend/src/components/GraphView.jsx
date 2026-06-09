@@ -414,7 +414,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                         graphRef.current.zoomToFit(400, padding, () => true);
                     }
                 }}
-                className="absolute bottom-4 right-4 z-10 flex items-center gap-2 px-4 py-2 bg-white dark:bg-black rounded-full border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors text-black dark:text-white text-sm font-medium"
+                className="absolute bottom-4 left-4 z-10 flex items-center gap-2 px-4 py-2 bg-white dark:bg-black rounded-full border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-900 pointer-events-auto shadow-sm transition-colors text-black dark:text-white text-sm font-medium"
             >
                 <Focus className="w-4 h-4" />
                 Restore View
