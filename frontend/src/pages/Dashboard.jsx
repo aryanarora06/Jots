@@ -105,6 +105,10 @@ const Dashboard = () => {
     const [reflowingNoteIds, setReflowingNoteIds] = useState(() => new Set());
     const [unstaggeredNoteIds, setUnstaggeredNoteIds] = useState(() => new Set());
 
+    const activeNoteIds = useMemo(() => {
+        return new Set([...notes.map(n => n.id), ...sharedNotes.map(sn => sn.note.id)]);
+    }, [notes, sharedNotes]);
+
     // Infinite scroll observer
     const { ref: loadMoreRef, inView } = useInView({
         threshold: 0,
@@ -1247,7 +1251,7 @@ const Dashboard = () => {
                     </div>
                     )}
 
-                    {activeTab !== 'shared-with-me' && (
+                    {activeTab !== 'shared-with-me' && activeTab !== 'graph' && (
                         <div className={`hidden lg:flex shrink-0 self-center items-center gap-2 ${activeTab === 'graph' ? 'ml-auto' : ''}`}>
                             <motion.button
                                 whileTap={tapAnimation}
@@ -1477,7 +1481,7 @@ const Dashboard = () => {
                                         darkMode={darkMode} 
                                         onNoteClick={(id) => handleWikilinkClick(null, id)}
                                         selectedTagFilters={selectedTagFilters}
-                                        activeNoteIds={new Set([...notes.map(n => n.id), ...sharedNotes.map(sn => sn.note.id)])}
+                                        activeNoteIds={activeNoteIds}
                                         refreshKey={refreshKey}
                                     />
                                 </motion.div>
@@ -1499,7 +1503,7 @@ const Dashboard = () => {
                 >
                     <HelpCircle className="h-6 w-6" />
                 </motion.button>
-                {activeTab !== 'shared-with-me' && (
+                {activeTab !== 'shared-with-me' && activeTab !== 'graph' && (
                     <>
                         <motion.button
                             whileTap={tapAnimation}
