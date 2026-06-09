@@ -192,9 +192,13 @@ class NoteSerializer(serializers.ModelSerializer):
         return None
 
     def get_backlinks_count(self, obj: Note) -> int:
+        if hasattr(obj, 'annotated_backlinks_count'):
+            return obj.annotated_backlinks_count
         return obj.incoming_links.count()
 
     def get_outgoing_links_count(self, obj: Note) -> int:
+        if hasattr(obj, 'annotated_outgoing_links_count'):
+            return obj.annotated_outgoing_links_count
         return obj.outgoing_links.count()
 
     def to_representation(self, instance):

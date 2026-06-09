@@ -148,8 +148,11 @@ class NoteViewSet(viewsets.ModelViewSet):
         Using request.user (set by JWTAuthentication) ensures the filter
         cannot be tampered with via query parameters or request body.
         """
-        from django.db.models import Q
-        queryset = Note.objects.filter(owner=self.request.user, is_trashed=False).select_related("owner").prefetch_related("tags")
+        from django.db.models import Q, Count
+        queryset = Note.objects.filter(owner=self.request.user, is_trashed=False).select_related("owner").prefetch_related("tags").annotate(
+            annotated_backlinks_count=Count('incoming_links', distinct=True),
+            annotated_outgoing_links_count=Count('outgoing_links', distinct=True)
+        )
         
         tag_ids = self.request.query_params.getlist('tag')
         if tag_ids:
@@ -338,13 +341,18 @@ class SharedWithMeView(generics.ListAPIView):
     serializer_class = SharedNoteSerializer
 
     def get_queryset(self):
-        from django.db.models import Q
+        from django.db.models import Q, Prefetch, Count
+
+        annotated_notes = Note.objects.annotate(
+            annotated_backlinks_count=Count('incoming_links', distinct=True),
+            annotated_outgoing_links_count=Count('outgoing_links', distinct=True)
+        )
 
         queryset = SharedNote.objects.filter(
             user=self.request.user,
             note__share_link__is_active=True,
             is_trashed=False,
-        ).select_related('note', 'note__owner')
+        ).select_related('note', 'note__owner').prefetch_related(Prefetch('note', queryset=annotated_notes))
 
         search = self.request.query_params.get('search')
         if search:
@@ -453,10 +461,14 @@ class TrashListView(APIView):
 
         items = []
 
+        from django.db.models import Prefetch, Count
         # Owned trashed notes
         owned_trashed = Note.objects.filter(
             owner=request.user, is_trashed=True
-        ).select_related('owner').prefetch_related('tags').order_by('-deleted_at')
+        ).select_related('owner').prefetch_related('tags').annotate(
+            annotated_backlinks_count=Count('incoming_links', distinct=True),
+            annotated_outgoing_links_count=Count('outgoing_links', distinct=True)
+        ).order_by('-deleted_at')
         for note in owned_trashed:
             elapsed = (timezone.now() - note.deleted_at).days if note.deleted_at else 0
             items.append({
@@ -468,10 +480,18 @@ class TrashListView(APIView):
                 'trash_id': str(note.id),
             })
 
+        annotated_notes = Note.objects.annotate(
+            annotated_backlinks_count=Count('incoming_links', distinct=True),
+            annotated_outgoing_links_count=Count('outgoing_links', distinct=True)
+        )
+
         # Shared trashed notes
         shared_trashed = SharedNote.objects.filter(
             user=request.user, is_trashed=True
-        ).select_related('note', 'note__owner').prefetch_related('note__tags').order_by('-deleted_at')
+        ).select_related('note', 'note__owner').prefetch_related(
+            'note__tags',
+            Prefetch('note', queryset=annotated_notes)
+        ).order_by('-deleted_at')
         for sn in shared_trashed:
             elapsed = (timezone.now() - sn.deleted_at).days if sn.deleted_at else 0
             items.append({
@@ -561,10 +581,14 @@ class GraphView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from django.db.models import Count
         notes = Note.objects.filter(
             owner=request.user,
             is_trashed=False,
-        ).prefetch_related('tags').only('id', 'title', 'is_favourite', 'updated_at')
+        ).prefetch_related('tags').only('id', 'title', 'is_favourite', 'updated_at').annotate(
+            annotated_backlinks_count=Count('incoming_links', distinct=True),
+            annotated_outgoing_links_count=Count('outgoing_links', distinct=True)
+        )
 
         # Build nodes
         nodes = []
@@ -573,8 +597,8 @@ class GraphView(APIView):
                 'id': str(note.id),
                 'title': note.title,
                 'is_favourite': note.is_favourite,
-                'incoming_count': note.incoming_links.count(),
-                'outgoing_count': note.outgoing_links.count(),
+                'incoming_count': note.annotated_backlinks_count,
+                'outgoing_count': note.annotated_outgoing_links_count,
                 'tags': [tag.id for tag in note.tags.all()],
             })
 

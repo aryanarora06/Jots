@@ -214,28 +214,34 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
             fg.d3ReheatSimulation();
         }
     }, [filteredGraphData, linkDistance, repelForce, gravityForce]);
+    const hasPerformedInitialSwoop = useRef(false);
 
-    // Auto-center is handled immediately since warmupTicks puts nodes in their final positions
+    // Auto-center is handled initially, then we just update data smoothly
     useEffect(() => {
-        setIsGraphReady(false);
-        const timer = setTimeout(() => {
-            setDisplayedGraphData(filteredGraphData);
-            if (graphRef.current && filteredGraphData.nodes.length > 0) {
-                // Wait briefly for the engine to ingest the data and run warmup ticks
-                setTimeout(() => {
-                    if (graphRef.current) {
-                        // Smoothly animate the camera to frame the new nodes (like clicking Restore View)
-                        const padding = dimensions.width < 600 ? 60 : 160;
-                        graphRef.current.zoomToFit(400, padding, () => true);
-                        // Wait for the 400ms zoom animation to finish before fading in
-                        setTimeout(() => setIsGraphReady(true), 400);
-                    }
-                }, 100);
-            } else {
-                setIsGraphReady(true);
-            }
-        }, 150);
-        return () => clearTimeout(timer);
+        setDisplayedGraphData(filteredGraphData);
+
+        if (filteredGraphData.nodes.length === 0) {
+            setIsGraphReady(true);
+            return;
+        }
+
+        if (!hasPerformedInitialSwoop.current && graphRef.current) {
+            // Wait briefly for the engine to ingest the data and run warmup ticks
+            const timer = setTimeout(() => {
+                if (graphRef.current) {
+                    // Smoothly animate the camera to frame the new nodes
+                    const padding = dimensions.width < 600 ? 60 : 160;
+                    graphRef.current.zoomToFit(400, padding, () => true);
+                    
+                    // Wait for the 400ms zoom animation to finish before fading in
+                    setTimeout(() => {
+                        setIsGraphReady(true);
+                        hasPerformedInitialSwoop.current = true;
+                    }, 400);
+                }
+            }, 100);
+            return () => clearTimeout(timer);
+        }
     }, [filteredGraphData, dimensions.width]);
 
     // No more handleZoomEnd logic, the camera is free.
