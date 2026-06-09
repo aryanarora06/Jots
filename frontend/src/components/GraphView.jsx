@@ -333,7 +333,11 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         const isMatch = isNodeMatch(node);
         
         const baseRadius = 5;
-        const radius = dimensions.width < 600 ? Math.max(baseRadius, 5 / globalScale) : baseRadius;
+        let radius = baseRadius;
+        if (dimensions.width < 600 && globalScale > 0) {
+            radius = Math.max(baseRadius, 5 / globalScale);
+        }
+        if (!isFinite(radius) || isNaN(radius)) radius = baseRadius;
 
         // Draw node circle
         ctx.beginPath();
@@ -596,7 +600,12 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                     nodeCanvasObject={paintNode}
                     nodePointerAreaPaint={(node, color, ctx, globalScale) => {
                         const baseRadius = 5;
-                        const visualRadius = dimensions.width < 600 ? Math.max(baseRadius, 5 / globalScale) : baseRadius;
+                        let visualRadius = baseRadius;
+                        if (dimensions.width < 600 && globalScale > 0) {
+                            visualRadius = Math.max(baseRadius, 5 / globalScale);
+                        }
+                        if (!isFinite(visualRadius) || isNaN(visualRadius)) visualRadius = baseRadius;
+                        
                         const radius = visualRadius + 4;
                         ctx.beginPath();
                         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
