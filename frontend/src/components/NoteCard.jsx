@@ -160,11 +160,12 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                                     e.stopPropagation();
                                     if (onToggleFavourite) onToggleFavourite(note);
                                 }}
-                                className="mr-2 focus:outline-none transition-transform active:scale-95 shrink-0"
+                                className="p-1.5 -ml-1.5 mr-0.5 rounded-full focus:outline-none transition-transform active:scale-95 shrink-0 hover:bg-gray-50 dark:hover:bg-gray-800/50"
                                 title={note.is_favourite ? "Remove from favourites" : "Add to favourites"}
+                                aria-label="Toggle favourite"
                             >
                                 <Star 
-                                    className={`h-4 w-4 transition-colors ${
+                                    className={`h-[18px] w-[18px] transition-colors ${
                                         note.is_favourite 
                                             ? 'fill-black text-black dark:fill-white dark:text-white' 
                                             : 'text-gray-300 dark:text-gray-600 hover:text-gray-900 dark:hover:text-gray-100'

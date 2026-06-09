@@ -100,7 +100,7 @@ class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ("id", "owner", "name", "color")
-        read_only_fields = ("id",)
+        read_only_fields = ()
         validators = [
             serializers.UniqueTogetherValidator(
                 queryset=Tag.objects.all(),
@@ -174,7 +174,7 @@ class NoteSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         )
-        read_only_fields = ("id", "owner", "tags", "word_count", "is_password_protected", "is_trashed", "deleted_at", "days_remaining", "backlinks_count", "outgoing_links_count", "created_at", "updated_at")
+        read_only_fields = ("owner", "tags", "word_count", "is_password_protected", "is_trashed", "deleted_at", "days_remaining", "backlinks_count", "outgoing_links_count", "created_at", "updated_at")
 
     def get_word_count(self, obj: Note) -> int:
         if obj.password_hash and not self.context.get('include_protected_content'):

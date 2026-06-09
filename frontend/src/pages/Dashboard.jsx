@@ -14,10 +14,11 @@ import GraphView from '../components/GraphView';
 import { useToast } from '../contexts/ToastContext';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { exportAsMarkdown, exportAllAsZip } from '../utils/exportNote';
-import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download, HelpCircle, CalendarDays, User } from 'lucide-react';
+import { LogOut, Plus, Search, Book, Moon, Sun, Filter, X, ArrowUpDown, ChevronDown, Download, HelpCircle, CalendarDays, User, Cloud, CloudOff, CloudLightning } from 'lucide-react';
 import { useInView } from 'react-intersection-observer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cardVariants, tabContentVariants, dropdownVariants, tapAnimation } from '../utils/motion';
+import { processSyncQueue } from '../utils/offlineSync';
 
 const SORT_OPTIONS = [
     { value: 'recent', label: 'Most recent', shortLabel: 'Recent' },
@@ -40,8 +41,48 @@ const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const Dashboard = () => {
     const { logout, user } = useContext(AuthContext);
     const location = useLocation();
-    const toast = useToast();
     const { confirm } = useConfirm();
+    const { showToast } = useToast();
+
+    // ────────────────────────────────────────────────────────
+    // State: Offline / Sync
+    // ────────────────────────────────────────────────────────
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    useEffect(() => {
+        const handleOnline = async () => {
+            setIsOnline(true);
+            setIsSyncing(true);
+            const success = await processSyncQueue(api);
+            setIsSyncing(false);
+            if (success) {
+                showToast("Back online! Offline changes synced.", "success");
+                // Trigger a full refresh of notes to ensure we're completely up to date
+                setRefreshKey(prev => prev + 1);
+                fetchTags();
+            } else {
+                showToast("Back online, but some offline changes failed to sync.", "error");
+            }
+        };
+        const handleOffline = () => {
+            setIsOnline(false);
+            showToast("You are offline. Changes will be saved locally and synced later.", "info");
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Process queue on initial mount if online
+        if (navigator.onLine) {
+            handleOnline();
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
     
     // Theme state
     const [darkMode, setDarkMode] = useState(() => {
@@ -1043,6 +1084,20 @@ const Dashboard = () => {
                         </div>
 
                         <div className="shrink-0 flex items-center space-x-1 lg:space-x-2 ml-auto">
+                            {/* Offline Sync Status */}
+                            <div className="flex items-center gap-2 mr-2">
+                                {isSyncing ? (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+                                        <CloudLightning className="w-4 h-4 animate-pulse" />
+                                        <span className="text-xs font-medium hidden sm:inline">Syncing...</span>
+                                    </div>
+                                ) : !isOnline ? (
+                                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-100 dark:border-red-800" title="Offline mode">
+                                        <CloudOff className="w-4 h-4" />
+                                        <span className="text-xs font-medium hidden sm:inline">Offline</span>
+                                    </div>
+                                ) : null}
+                            </div>
                             <motion.button
                                 whileTap={tapAnimation}
                                 onClick={() => exportAllAsZip(notes, sharedNotes)}
@@ -1492,34 +1547,33 @@ const Dashboard = () => {
                 </div>
             </div>
             </main>
-
             {/* Mobile FAB */}
             <div className="lg:hidden fixed bottom-6 right-6 z-40 flex flex-col gap-3">
                 <motion.button
                     whileTap={tapAnimation}
                     onClick={() => setShowHelp(true)}
-                    className="flex h-14 w-14 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
                     aria-label="Help"
                 >
-                    <HelpCircle className="h-6 w-6" />
+                    <HelpCircle className="h-5 w-5" />
                 </motion.button>
                 {activeTab !== 'shared-with-me' && activeTab !== 'graph' && (
                     <>
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={handleDailyNote}
-                            className="flex h-14 w-14 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                            className="flex h-12 w-12 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
                             aria-label="Daily Note"
                         >
-                            <CalendarDays className="h-6 w-6" />
+                            <CalendarDays className="h-5 w-5" />
                         </motion.button>
                         <motion.button
                             whileTap={tapAnimation}
                             onClick={openCreateModal}
-                            className="flex h-14 w-14 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-lg focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                            className="flex h-12 w-12 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-lg focus:outline-none transition-transform hover:scale-105 active:scale-95"
                             aria-label="New Note"
                         >
-                            <Plus className="h-6 w-6" />
+                            <Plus className="h-5 w-5" />
                         </motion.button>
                     </>
                 )}

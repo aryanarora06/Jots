@@ -249,6 +249,12 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 safetyTimerRef.current = setTimeout(() => {
                     isFadingRef.current = false;
                     setIsFading(false);
+                    
+                    // Automatically restore view when nodes reappear
+                    if (graphRef.current) {
+                        const padding = dimensions.width < 600 ? 60 : 160;
+                        graphRef.current.zoomToFit(400, padding, () => true);
+                    }
                 }, 400);
             }, 200);
         } else {
@@ -418,6 +424,18 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         }
         return colors.link;
     }, [hoveredNode, searchQuery, isNodeMatch, filteredGraphData.nodes, colors, darkMode]);
+    const lastClickTimeRef = useRef(0);
+    const handleBackgroundClick = useCallback(() => {
+        const now = Date.now();
+        if (now - lastClickTimeRef.current < 300) {
+            // Double tap detected
+            if (graphRef.current) {
+                const padding = dimensions.width < 600 ? 60 : 160;
+                graphRef.current.zoomToFit(400, padding, () => true);
+            }
+        }
+        lastClickTimeRef.current = now;
+    }, [dimensions.width]);
 
     return (
         <motion.div 
@@ -593,6 +611,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
             >
                 <ForceGraph2D
                     ref={graphRef}
+                    onBackgroundClick={handleBackgroundClick}
                     graphData={displayedGraphData}
                     width={dimensions.width}
                     height={dimensions.height}
