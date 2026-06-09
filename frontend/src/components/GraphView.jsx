@@ -363,18 +363,23 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         return colors.link;
     }, [hoveredNode, searchQuery, isNodeMatch, filteredGraphData.nodes, colors, darkMode]);
 
-    if (isLoading && graphData.nodes.length === 0) {
-        return (
-            <div className="flex items-center justify-center py-32">
-            </div>
-        );
-    }
-
     return (
-        <div ref={containerRef} className="relative w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm" style={{ backgroundColor: colors.bg, height: dimensions.height }}>
+        <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            ref={containerRef} 
+            className="relative w-full overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm" 
+            style={{ backgroundColor: colors.bg, height: dimensions.height }}
+        >
             
             {/* Top Bar Overlay */}
-            <div className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start pointer-events-none">
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: (!isLoading && isGraphReady) ? 1 : 0 }}
+                transition={{ duration: 0.5 }}
+                className="absolute top-3 left-3 right-3 z-10 flex justify-between items-start pointer-events-none"
+            >
                 <div className="flex items-center gap-3 text-xs font-medium bg-white dark:bg-black px-3 py-2 rounded-md border border-gray-200 dark:border-gray-800 pointer-events-auto shadow-sm">
                     <span>{filteredGraphData.nodes.length} nodes</span>
                     <span className="text-gray-300 dark:text-gray-700">|</span>
@@ -389,10 +394,12 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 >
                     <Settings2 className="w-4 h-4 text-black dark:text-white" />
                 </motion.button>
-            </div>
+            </motion.div>
 
-            {/* Recenter Graph Button */}
             <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: (!isLoading && isGraphReady) ? 1 : 0 }}
+                transition={{ duration: 0.5 }}
                 whileTap={tapAnimation}
                 onClick={() => {
                     if (graphRef.current) {
@@ -571,7 +578,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                     enableNodeDrag={true}
                 />
             </motion.div>
-        </div>
+        </motion.div>
     );
 };
 
