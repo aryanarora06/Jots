@@ -225,9 +225,10 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 setTimeout(() => {
                     if (graphRef.current) {
                         // Smoothly animate the camera to frame the new nodes (like clicking Restore View)
-                        const padding = dimensions.width < 600 ? 35 : 120;
+                        const padding = dimensions.width < 600 ? 60 : 160;
                         graphRef.current.zoomToFit(400, padding, () => true);
-                        setIsGraphReady(true);
+                        // Wait for the 400ms zoom animation to finish before fading in
+                        setTimeout(() => setIsGraphReady(true), 400);
                     }
                 }, 100);
             } else {
@@ -279,7 +280,8 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         const isNeighbor = isHoveredNeighbor(node);
         const isMatch = isNodeMatch(node);
         
-        const radius = 5;
+        const baseRadius = 5;
+        const radius = dimensions.width < 600 ? Math.max(baseRadius, 5 / globalScale) : baseRadius;
 
         // Draw node circle
         ctx.beginPath();
@@ -332,7 +334,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         }
         
         ctx.globalAlpha = 1; // Reset alpha
-    }, [getOpacity, hoveredNode, isHoveredNeighbor, isNodeMatch, colors, showLabels, searchQuery]);
+    }, [getOpacity, hoveredNode, isHoveredNeighbor, isNodeMatch, colors, showLabels, searchQuery, dimensions.width]);
 
     const getLinkColor = useCallback((link) => {
         const srcId = typeof link.source === 'object' ? link.source.id : link.source;
@@ -395,7 +397,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 onClick={() => {
                     if (graphRef.current) {
                         // Use a responsive padding so the edge nodes and labels are safely within the screen bounds
-                        const padding = dimensions.width < 600 ? 35 : 120;
+                        const padding = dimensions.width < 600 ? 60 : 160;
                         graphRef.current.zoomToFit(400, padding, () => true);
                     }
                 }}
@@ -520,7 +522,12 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 )}
             </AnimatePresence>
 
-            <div className={`absolute inset-0 transition-opacity duration-300 ease-in-out ${(!isLoading && isGraphReady) ? 'opacity-100' : 'opacity-0'}`}>
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: (!isLoading && isGraphReady) ? 1 : 0 }}
+                transition={{ duration: 0.5, ease: "easeInOut" }}
+                className="absolute inset-0"
+            >
                 <ForceGraph2D
                     ref={graphRef}
                     graphData={displayedGraphData}
@@ -528,8 +535,10 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                     height={dimensions.height}
                     backgroundColor={colors.bg}
                     nodeCanvasObject={paintNode}
-                    nodePointerAreaPaint={(node, color, ctx) => {
-                        const radius = 8;
+                    nodePointerAreaPaint={(node, color, ctx, globalScale) => {
+                        const baseRadius = 5;
+                        const visualRadius = dimensions.width < 600 ? Math.max(baseRadius, 5 / globalScale) : baseRadius;
+                        const radius = visualRadius + 4;
                         ctx.beginPath();
                         ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
                         ctx.fillStyle = color;
@@ -561,7 +570,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                     d3VelocityDecay={0.4}
                     enableNodeDrag={true}
                 />
-            </div>
+            </motion.div>
         </div>
     );
 };

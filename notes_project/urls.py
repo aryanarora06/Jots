@@ -43,8 +43,16 @@ router = DefaultRouter()
 router.register(r"notes", NoteViewSet, basename="note")
 router.register(r"tags", TagViewSet, basename="tag")
 
+from django.http import HttpResponse
+
+def health_check(request):
+    return HttpResponse("OK", status=200)
+
 # ── URL Patterns ────────────────────────────────────────────────────────────
 urlpatterns = [
+    path("", health_check, name="root-health"),
+    path("health/", health_check, name="health-check"),
+    path("health", health_check, name="health-check-no-slash"),
     path("admin/", admin.site.urls),
 
     # ── Authentication ───────────────────────────────────────────────────────
