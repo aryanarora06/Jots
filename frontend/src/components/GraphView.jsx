@@ -190,29 +190,32 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         if (graphRef.current) {
             const fg = graphRef.current;
             
-            fg.d3Force('charge').strength(-repelForce); 
-            fg.d3Force('link').distance(linkDistance);     
-            
-            fg.d3Force('center', null);
-            
-            const customGravity = function(alpha) {
-                const nodes = customGravity.nodes || [];
+            try {
+                if (fg.d3Force('charge')) fg.d3Force('charge').strength(-repelForce); 
+                if (fg.d3Force('link')) fg.d3Force('link').distance(linkDistance);     
                 
-                for (let i = 0; i < nodes.length; i++) {
-                    const node = nodes[i];
-                    if (node.x === undefined || node.y === undefined) continue;
+                fg.d3Force('center', null);
+                
+                const customGravity = function(alpha) {
+                    const nodes = customGravity.nodes || [];
                     
-                    node.vx -= node.x * gravityForce * alpha;
-                    node.vy -= node.y * gravityForce * alpha;
-                }
-            };
-            customGravity.initialize = function(nodes) {
-                customGravity.nodes = nodes;
-            };
-            
-            fg.d3Force('customGravity', customGravity);
-            
-            fg.d3ReheatSimulation();
+                    for (let i = 0; i < nodes.length; i++) {
+                        const node = nodes[i];
+                        if (node.x === undefined || node.y === undefined) continue;
+                        
+                        node.vx -= node.x * gravityForce * alpha;
+                        node.vy -= node.y * gravityForce * alpha;
+                    }
+                };
+                customGravity.initialize = function(nodes) {
+                    customGravity.nodes = nodes;
+                };
+                
+                fg.d3Force('customGravity', customGravity);
+                fg.d3ReheatSimulation();
+            } catch (e) {
+                console.warn("Could not apply D3 forces (engine might be initializing):", e);
+            }
         }
     }, [displayedGraphData, linkDistance, repelForce, gravityForce]);
 
@@ -220,6 +223,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
     const prevTagsRef = useRef(selectedTagFilters);
     const pendingDataRef = useRef(null);
     const isFadingRef = useRef(false);
+    const isFadingOutRef = useRef(false); // Only true during the 200ms fade-out to prevent visible jitter
     const fadeTimerRef = useRef(null);
     const safetyTimerRef = useRef(null);
 
@@ -231,12 +235,14 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
 
         if (tagsChanged) {
             isFadingRef.current = true;
+            isFadingOutRef.current = true;
             setIsFading(true);
             
             clearTimeout(fadeTimerRef.current);
             clearTimeout(safetyTimerRef.current);
 
             fadeTimerRef.current = setTimeout(() => {
+                isFadingOutRef.current = false;
                 setDisplayedGraphData(pendingDataRef.current);
                 
                 // Fade back in after a short delay so it feels snappy but hides the initial jump
@@ -246,8 +252,9 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                 }, 400);
             }, 200);
         } else {
-            // If we are NOT currently in a fade transition, update data instantly
-            if (!isFadingRef.current) {
+            // If we are NOT visibly fading out (opacity > 0 dropping to 0), it is safe to apply data updates!
+            // If the graph is fully invisible (isFading is true, but isFadingOut is false), updates are silent and safe.
+            if (!isFadingOutRef.current) {
                 setDisplayedGraphData(filteredGraphData);
             }
         }
@@ -258,15 +265,19 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         } else if (!hasPerformedInitialSwoop.current && graphRef.current) {
             const swoopTimer = setTimeout(() => {
                 if (graphRef.current) {
-                    const padding = dimensions.width < 600 ? 60 : 160;
-                    graphRef.current.zoomToFit(400, padding, () => true);
+                    try {
+                        const padding = dimensions.width < 600 ? 60 : 160;
+                        graphRef.current.zoomToFit(400, padding, () => true);
+                    } catch (e) {
+                        console.warn("zoomToFit failed (nodes might lack coordinates on slow PC):", e);
+                    }
                     
                     setTimeout(() => {
                         setIsGraphReady(true);
                         hasPerformedInitialSwoop.current = true;
                     }, 400);
                 }
-            }, 100);
+            }, 300); // 300ms gives physics engine a bit more time to calculate initial coords
             return () => clearTimeout(swoopTimer);
         }
     }, [filteredGraphData, dimensions.width, selectedTagFilters]);
