@@ -48,6 +48,11 @@ button:active {
   --tw-shadow: 0 0 #0000 !important;
 }
 
+button:active {
+  transform: scale(0.95);
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 .dark {
   color-scheme: dark;
 }

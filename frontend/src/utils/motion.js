@@ -4,7 +4,7 @@ export const microSpring = { type: 'spring', stiffness: 400, damping: 30 };
 export const fadeEase = [0.4, 0.0, 0.2, 1]; // standard material-like crossfade easing
 
 // Micro-interactions (Hovers, Taps, Clicks) - Retained per user request
-export const tapAnimation = { scale: 0.98, transition: microSpring };
+export const tapAnimation = { scale: 0.95, transition: microSpring };
 export const hoverAnimation = { y: -2, transition: microSpring };
 
 // Modals

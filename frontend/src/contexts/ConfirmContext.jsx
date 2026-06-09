@@ -59,6 +59,17 @@ export const ConfirmProvider = ({ children }) => {
         };
     }, [confirmState.isOpen]);
 
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && confirmState.isOpen) {
+                e.stopPropagation();
+                handleCancel();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }, [confirmState.isOpen, handleCancel]);
+
     return (
         <ConfirmContext.Provider value={{ confirm }}>
             {children}

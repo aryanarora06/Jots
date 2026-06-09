@@ -39,6 +39,8 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
     const [newTagName, setNewTagName] = useState('');
     const formRef = useRef(null);
     const newTagInputRef = useRef(null);
+    
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const toast = useToast();
 
@@ -93,6 +95,7 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
         }
         setShowNewTagInput(false);
         setNewTagName('');
+        setIsSubmitting(false);
     }, [note, isOpen]);
 
     useEffect(() => {
@@ -101,13 +104,19 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
         }
     }, [showNewTagInput]);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        onSave({ 
-            title, 
-            content,
-            tag_ids: selectedTagIds
-        });
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+            await onSave({ 
+                title, 
+                content,
+                tag_ids: selectedTagIds
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const toggleTag = (tagId) => {
@@ -379,11 +388,12 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
                                     Cancel
                                 </motion.button>
                                 <motion.button
-                                    whileTap={tapAnimation}
+                                    whileTap={isSubmitting ? {} : tapAnimation}
                                     type="submit"
-                                    className="group relative px-4 py-1.5 text-sm font-medium text-white bg-black hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 rounded-md transition-colors"
+                                    disabled={isSubmitting}
+                                    className="group relative px-4 py-1.5 min-w-[120px] flex justify-center items-center text-sm font-medium text-white bg-black hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 rounded-md transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
                                 >
-                                    {note ? 'Save Changes' : 'Create Note'}
+                                    {isSubmitting ? 'Saving...' : (note ? 'Save Changes' : 'Create Note')}
                                     <span className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-black text-white dark:bg-white dark:text-black text-[10px] px-2 py-1 rounded-sm pointer-events-none whitespace-nowrap">
                                         Ctrl+S
                                     </span>

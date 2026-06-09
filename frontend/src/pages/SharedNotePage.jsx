@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Book, User, Plus, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Book, User, Plus, X } from 'lucide-react';
 import api from '../api';
 import WordCount from '../components/WordCount';
 import { motion, AnimatePresence } from 'framer-motion';
-import { slideUpVariants, tapAnimation } from '../utils/motion';
+import { modalBackdropVariants, modalPanelVariants, tapAnimation } from '../utils/motion';
 
 const SharedNotePage = () => {
     const { token } = useParams();
@@ -14,6 +14,14 @@ const SharedNotePage = () => {
     const [isAccepting, setIsAccepting] = useState(false);
     const [notePreview, setNotePreview] = useState(null);
     const [error, setError] = useState(null);
+
+    const [isVisible, setIsVisible] = useState(true);
+    const [navTarget, setNavTarget] = useState(null);
+
+    const handleClose = (target = '/', state = {}) => {
+        setNavTarget({ pathname: target, state });
+        setIsVisible(false);
+    };
 
     useEffect(() => {
         const fetchPreview = async () => {
@@ -39,9 +47,9 @@ const SharedNotePage = () => {
         setError(null);
         try {
             await api.post(`/api/share/${token}/`);
-            // Add a small delay for the animation
+            // Wait briefly then close with animation
             setTimeout(() => {
-                navigate('/', { state: { showShared: true } });
+                handleClose('/', { showShared: true });
             }, 300);
         } catch (err) {
             console.error('Failed to accept share:', err);
@@ -50,11 +58,7 @@ const SharedNotePage = () => {
                 if (err.response.data.detail === "Note already shared with you." || 
                     err.response.data.detail === "You own this note.") {
                     setTimeout(() => {
-                        if (err.response.data.detail === "You own this note.") {
-                            navigate('/');
-                        } else {
-                            navigate('/', { state: { showShared: true } });
-                        }
+                        handleClose('/', { showShared: err.response.data.detail !== "You own this note." });
                     }, 2000);
                 }
             } else {
@@ -65,81 +69,95 @@ const SharedNotePage = () => {
     };
 
     return (
-        <div className="min-h-[100dvh] bg-gray-50 dark:bg-black flex flex-col justify-center py-12 sm:px-6 lg:px-8 transition-colors">
-            <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                
-                <motion.button 
-                    whileTap={tapAnimation}
-                    onClick={() => navigate('/')}
-                    className="mb-6 inline-flex items-center text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors group"
-                >
-                    <ArrowLeft className="w-4 h-4 mr-1.5 transform group-hover:-translate-x-1 transition-transform" />
-                    Back to dashboard
-                </motion.button>
+        <AnimatePresence 
+            mode="wait" 
+            onExitComplete={() => {
+                if (navTarget) navigate(navTarget.pathname, { state: navTarget.state });
+            }}
+        >
+            {isVisible && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                    <motion.div 
+                        className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm"
+                        variants={modalBackdropVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        onClick={() => handleClose('/')}
+                    />
 
-                <motion.div 
-                    variants={slideUpVariants}
-                    initial="initial"
-                    animate="animate"
-                    className="bg-white dark:bg-gray-900 py-8 px-6 shadow-xl shadow-gray-200/50 dark:shadow-none sm:rounded-2xl border border-gray-100 dark:border-gray-800"
-                >
-                    <div className="flex justify-center mb-6">
-                        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-black dark:text-white">
-                            <Book className="h-6 w-6" />
-                        </div>
-                    </div>
-                    
-                    <h2 className="text-center text-2xl font-bold tracking-tight text-gray-900 dark:text-white mb-2">
-                        Shared Note
-                    </h2>
-
-                    <AnimatePresence mode="wait">
-                    {isLoading ? (
-                        <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="flex flex-col items-center justify-center py-24 text-center">
-                            <h2 className="mt-4 text-xl font-medium text-gray-900 dark:text-white">Loading note...</h2>
-                        </motion.div>
-                    ) : error ? (
-                        <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }} className="mt-4 p-4 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-100 dark:border-red-800 text-center">
-                            <AlertCircle className="w-6 h-6 text-red-500 dark:text-red-400 mx-auto mb-2" />
-                            <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-                        </motion.div>
-                    ) : notePreview ? (
-                        <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }} className="mt-6 space-y-6">
-                            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                                <h3 className="font-semibold text-gray-900 dark:text-white mb-1 tracking-tight">
-                                    {notePreview.title}
-                                </h3>
-                                <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
-                                    <User className="w-3.5 h-3.5 mr-1" />
-                                    Shared by <span className="font-medium text-gray-700 dark:text-gray-300 ml-1">{notePreview.owner}</span>
-                                </div>
-                                <WordCount note={notePreview} className="mb-3 block" />
-                                <div className="text-sm text-gray-600 dark:text-gray-400 italic line-clamp-3">
-                                    "{notePreview.preview}"
-                                </div>
-                            </div>
-
-                            <motion.button
+                    <motion.div 
+                        variants={modalPanelVariants}
+                        initial="initial"
+                        animate="animate"
+                        exit="exit"
+                        className="relative w-full max-w-md bg-white dark:bg-black rounded-xl shadow-2xl shadow-black/10 dark:shadow-black/60 border border-gray-200 dark:border-gray-800 overflow-hidden flex flex-col"
+                    >
+                        <div className="px-6 py-6 text-center">
+                            <motion.button 
                                 whileTap={tapAnimation}
-                                onClick={handleAccept}
-                                disabled={isAccepting}
-                                className={`w-full flex items-center justify-center py-3 px-4 rounded-xl text-sm font-semibold text-white bg-black dark:bg-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none transition-all ${isAccepting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                onClick={() => handleClose('/')}
+                                className="absolute top-4 right-4 rounded-md p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 dark:hover:text-gray-300 transition-colors"
                             >
-                                {isAccepting ? (
-                                    <span className="w-5 h-5 flex items-center justify-center">...</span>
-                                ) : (
-                                    <>
-                                        <Plus className="w-5 h-5 mr-2" />
-                                        Add to my notes
-                                    </>
-                                )}
+                                <X className="w-4 h-4" />
                             </motion.button>
-                        </motion.div>
-                    ) : null}
-                    </AnimatePresence>
-                </motion.div>
-            </div>
-        </div>
+
+                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-black dark:text-white">
+                                <Book className="h-6 w-6" />
+                            </div>
+                            
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                Shared Note
+                            </h3>
+
+                            <AnimatePresence mode="wait">
+                            {isLoading ? (
+                                <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="py-8">
+                                    <h2 className="text-sm font-medium text-gray-500 dark:text-gray-400">Loading note...</h2>
+                                </motion.div>
+                            ) : error ? (
+                                <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="mt-4 p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-gray-900 dark:text-gray-100 text-sm rounded-md text-center">
+                                    {error}
+                                </motion.div>
+                            ) : notePreview ? (
+                                <motion.div key="content" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="mt-4 text-left">
+                                    <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-md border border-gray-200 dark:border-gray-800 mb-4">
+                                        <h3 className="font-semibold text-gray-900 dark:text-white mb-1 tracking-tight">
+                                            {notePreview.title}
+                                        </h3>
+                                        <div className="flex items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
+                                            <User className="w-3.5 h-3.5 mr-1" />
+                                            Shared by <span className="font-medium text-gray-700 dark:text-gray-300 ml-1">{notePreview.owner}</span>
+                                        </div>
+                                        <WordCount note={notePreview} className="mb-3 block" />
+                                        <div className="text-sm text-gray-600 dark:text-gray-400 italic line-clamp-3">
+                                            "{notePreview.preview}"
+                                        </div>
+                                    </div>
+
+                                    <motion.button
+                                        whileTap={tapAnimation}
+                                        onClick={handleAccept}
+                                        disabled={isAccepting}
+                                        className={`w-full flex items-center justify-center py-2.5 px-4 rounded-md text-sm font-medium text-white dark:text-black bg-black dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-200 focus:outline-none transition-all ${isAccepting ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    >
+                                        {isAccepting ? (
+                                            <span className="w-5 h-5 flex items-center justify-center">...</span>
+                                        ) : (
+                                            <>
+                                                <Plus className="w-4 h-4 mr-1.5" />
+                                                Add to my notes
+                                            </>
+                                        )}
+                                    </motion.button>
+                                </motion.div>
+                            ) : null}
+                            </AnimatePresence>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
     );
 };
 

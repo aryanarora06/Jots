@@ -36,14 +36,21 @@ const ViewNoteModal = ({ isOpen, onClose, note, onTagClick, onEdit, onDelete, on
 
     // Close on Escape key
     useEffect(() => {
+        if (!isOpen) return;
         const handleKeyDown = (e) => {
-            if (e.key === 'Escape') onClose();
+            if (e.key === 'Escape') {
+                if (showExportMenu) {
+                    e.stopPropagation();
+                    setShowExportMenu(false);
+                } else {
+                    onClose();
+                }
+            }
         };
-        if (isOpen) {
-            window.addEventListener('keydown', handleKeyDown);
-        }
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+        // Use capture phase to intercept before React propagates it down
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }, [isOpen, onClose, showExportMenu]);
 
     // Close export menu on click outside
     useEffect(() => {

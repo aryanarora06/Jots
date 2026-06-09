@@ -146,6 +146,7 @@ const Dashboard = () => {
             if (e.key === 'Escape') {
                 setSortMenuOpen(false);
                 setProfileMenuOpen(false);
+                setSelectedNotes(new Set());
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -303,12 +304,10 @@ const Dashboard = () => {
         fetchNotes();
     }, [fetchNotes]);
 
-    // Fetch shared notes when tab changes
+    // Fetch shared notes on filter change or initial load, same as regular notes
     useEffect(() => {
-        if (activeTab === 'shared-with-me') {
-            fetchSharedNotes();
-        }
-    }, [activeTab, fetchSharedNotes]);
+        fetchSharedNotes();
+    }, [fetchSharedNotes]);
 
     useEffect(() => {
         setSelectedTagFilters([]);
@@ -1032,7 +1031,7 @@ const Dashboard = () => {
                             <motion.button 
                                 whileTap={tapAnimation}
                                 onClick={() => setShowHelp(true)}
-                                className="shrink-0 p-2.5 lg:p-2 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors focus:outline-none"
+                                className="hidden lg:flex shrink-0 p-2.5 lg:p-2 text-gray-500 hover:text-black dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md transition-colors focus:outline-none"
                                 title="How to use Jots"
                             >
                                 <HelpCircle className="h-5 w-5 lg:h-4 lg:w-4" />
@@ -1491,26 +1490,36 @@ const Dashboard = () => {
             </main>
 
             {/* Mobile FAB */}
-            {activeTab !== 'shared-with-me' && (
-                <div className="lg:hidden fixed bottom-6 right-6 z-40 flex flex-col gap-3">
-                    <motion.button
-                        whileTap={tapAnimation}
-                        onClick={handleDailyNote}
-                        className="flex h-14 w-14 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
-                        aria-label="Daily Note"
-                    >
-                        <CalendarDays className="h-6 w-6" />
-                    </motion.button>
-                    <motion.button
-                        whileTap={tapAnimation}
-                        onClick={openCreateModal}
-                        className="flex h-14 w-14 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-lg focus:outline-none transition-transform hover:scale-105 active:scale-95"
-                        aria-label="New Note"
-                    >
-                        <Plus className="h-6 w-6" />
-                    </motion.button>
-                </div>
-            )}
+            <div className="lg:hidden fixed bottom-6 right-6 z-40 flex flex-col gap-3">
+                <motion.button
+                    whileTap={tapAnimation}
+                    onClick={() => setShowHelp(true)}
+                    className="flex h-14 w-14 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                    aria-label="Help"
+                >
+                    <HelpCircle className="h-6 w-6" />
+                </motion.button>
+                {activeTab !== 'shared-with-me' && (
+                    <>
+                        <motion.button
+                            whileTap={tapAnimation}
+                            onClick={handleDailyNote}
+                            className="flex h-14 w-14 items-center justify-center rounded-full bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                            aria-label="Daily Note"
+                        >
+                            <CalendarDays className="h-6 w-6" />
+                        </motion.button>
+                        <motion.button
+                            whileTap={tapAnimation}
+                            onClick={openCreateModal}
+                            className="flex h-14 w-14 items-center justify-center rounded-full bg-black dark:bg-white text-white dark:text-black shadow-lg focus:outline-none transition-transform hover:scale-105 active:scale-95"
+                            aria-label="New Note"
+                        >
+                            <Plus className="h-6 w-6" />
+                        </motion.button>
+                    </>
+                )}
+            </div>
 
             <NoteModal 
                 isOpen={isModalOpen}

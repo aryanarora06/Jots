@@ -31,9 +31,19 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
                 setShowExportMenu(false);
             }
         };
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape' && showExportMenu) {
+                e.stopPropagation();
+                setShowExportMenu(false);
+            }
+        };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('keydown', handleKeyDown, true);
+        };
+    }, [showExportMenu]);
 
     // Lazy render markdown only when card is visible
     useEffect(() => {
