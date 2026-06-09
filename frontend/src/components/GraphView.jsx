@@ -16,6 +16,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
     // UI State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isGraphReady, setIsGraphReady] = useState(false);
+    const [isFading, setIsFading] = useState(false);
 
     const [searchQuery, setSearchQuery] = useState('');
     const [showOrphans, setShowOrphans] = useState(true);
@@ -216,25 +217,50 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
     }, [displayedGraphData, linkDistance, repelForce, gravityForce]);
 
     const hasPerformedInitialSwoop = useRef(false);
+    const prevTagsRef = useRef(selectedTagFilters);
+    const pendingDataRef = useRef(null);
+    const isFadingRef = useRef(false);
+    const fadeTimerRef = useRef(null);
+    const safetyTimerRef = useRef(null);
 
     // Auto-center is handled initially, then we just update data smoothly
     useEffect(() => {
-        setDisplayedGraphData(filteredGraphData);
+        pendingDataRef.current = filteredGraphData;
+        const tagsChanged = prevTagsRef.current !== selectedTagFilters;
+        prevTagsRef.current = selectedTagFilters;
 
-        if (filteredGraphData.nodes.length === 0) {
-            setIsGraphReady(true);
-            return;
+        if (tagsChanged) {
+            isFadingRef.current = true;
+            setIsFading(true);
+            
+            clearTimeout(fadeTimerRef.current);
+            clearTimeout(safetyTimerRef.current);
+
+            fadeTimerRef.current = setTimeout(() => {
+                setDisplayedGraphData(pendingDataRef.current);
+                
+                // Fade back in after a short delay so it feels snappy but hides the initial jump
+                safetyTimerRef.current = setTimeout(() => {
+                    isFadingRef.current = false;
+                    setIsFading(false);
+                }, 400);
+            }, 200);
+        } else {
+            // If we are NOT currently in a fade transition, update data instantly
+            if (!isFadingRef.current) {
+                setDisplayedGraphData(filteredGraphData);
+            }
         }
 
-        if (!hasPerformedInitialSwoop.current && graphRef.current) {
-            // Wait briefly for the engine to ingest the data and run warmup ticks
+        // Initial swoop logic
+        if (filteredGraphData.nodes.length === 0) {
+            setIsGraphReady(true);
+        } else if (!hasPerformedInitialSwoop.current && graphRef.current) {
             const swoopTimer = setTimeout(() => {
                 if (graphRef.current) {
-                    // Smoothly animate the camera to frame the new nodes
                     const padding = dimensions.width < 600 ? 60 : 160;
                     graphRef.current.zoomToFit(400, padding, () => true);
                     
-                    // Wait for the 400ms zoom animation to finish before fading in
                     setTimeout(() => {
                         setIsGraphReady(true);
                         hasPerformedInitialSwoop.current = true;
@@ -243,7 +269,15 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
             }, 100);
             return () => clearTimeout(swoopTimer);
         }
-    }, [filteredGraphData, dimensions.width]);
+    }, [filteredGraphData, dimensions.width, selectedTagFilters]);
+
+    // Cleanup timers on unmount
+    useEffect(() => {
+        return () => {
+            clearTimeout(fadeTimerRef.current);
+            clearTimeout(safetyTimerRef.current);
+        };
+    }, []);
 
     // No more handleZoomEnd logic, the camera is free.
 
@@ -538,7 +572,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
 
             <motion.div 
                 initial={{ opacity: 0 }}
-                animate={{ opacity: (!isLoading && isGraphReady) ? 1 : 0 }}
+                animate={{ opacity: (!isLoading && isGraphReady && !isFading) ? 1 : 0 }}
                 transition={{ duration: 0.2, ease: "easeInOut" }}
                 className="absolute inset-0"
             >
@@ -582,6 +616,7 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
                     }}
                     onEngineStop={() => {
                         setIsGraphReady(true);
+                        setIsFading(false);
                     }}
                     d3AlphaDecay={0.015}
                     d3VelocityDecay={0.4}
