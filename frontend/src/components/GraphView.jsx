@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import ForceGraph2D from 'react-force-graph-2d';
+import ForceGraph2D_ from 'react-force-graph-2d';
+const ForceGraph2D = ForceGraph2D_.default || ForceGraph2D_;
 import { Settings2, X, Search, Focus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { tapAnimation } from '../utils/motion';
@@ -219,7 +220,6 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         setIsGraphReady(false);
         const timer = setTimeout(() => {
             setDisplayedGraphData(filteredGraphData);
-            setRenderedKey(prev => prev + 1);
             if (graphRef.current && filteredGraphData.nodes.length > 0) {
                 // Wait briefly for the engine to ingest the data and run warmup ticks
                 setTimeout(() => {
