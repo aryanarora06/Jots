@@ -65,6 +65,7 @@ class Note(models.Model):
     title = models.CharField(
         max_length=255,
         blank=False,
+        db_index=True,
         help_text="Short descriptive title for the note (max 255 chars).",
     )
     content = models.TextField(

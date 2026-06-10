@@ -12,6 +12,7 @@ from django.utils import timezone
 from rest_framework import generics, viewsets, filters, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import UserRateThrottle
 
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
@@ -23,15 +24,18 @@ from .serializers import (
     ShareLinkSerializer, SharedNoteSerializer, AcceptShareSerializer,
 )
 
-
-# ---------------------------------------------------------------------------
-# Authentication Views
+class PasswordUnlockThrottle(UserRateThrottle):
+    rate = '10/min'
 # ---------------------------------------------------------------------------
 
 from django.conf import settings
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from rest_framework_simplejwt.tokens import RefreshToken
+
+class UserRegistrationView(generics.CreateAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = UserRegistrationSerializer
 
 class GoogleLoginView(APIView):
     """
@@ -62,12 +66,24 @@ class GoogleLoginView(APIView):
             first_name = idinfo.get("given_name", "")
             last_name = idinfo.get("family_name", "")
             
-            # Find or create user using email as the username
-            user, created = User.objects.get_or_create(username=email, defaults={
-                'email': email,
-                'first_name': first_name,
-                'last_name': last_name
-            })
+            # Find user by email to prevent duplicate accounts
+            user = User.objects.filter(email=email).first()
+            created = False
+            
+            if not user:
+                # If username taken by someone without this email, append a random string
+                base_username = email
+                if User.objects.filter(username=base_username).exists():
+                    import uuid
+                    base_username = f"{email}_{uuid.uuid4().hex[:6]}"
+                    
+                user = User.objects.create(
+                    username=base_username,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                created = True
             
             # Generate SimpleJWT tokens
             refresh = RefreshToken.for_user(user)
@@ -161,22 +177,11 @@ class NoteViewSet(viewsets.ModelViewSet):
             
         search = self.request.query_params.get('search')
         if search:
-            from thefuzz import fuzz
-            matched_ids = []
-            search_str = search.lower()
-            for note in queryset:
-                t_score = fuzz.partial_ratio(search_str, note.title.lower() if note.title else "")
-                t_score2 = fuzz.token_set_ratio(search_str, note.title.lower() if note.title else "")
-                
-                c_score = 0
-                c_score2 = 0
-                if not note.password_hash:
-                    c_score = fuzz.partial_ratio(search_str, note.content.lower() if note.content else "")
-                    c_score2 = fuzz.token_set_ratio(search_str, note.content.lower() if note.content else "")
-                
-                if max(t_score, c_score, t_score2, c_score2) > 65:
-                    matched_ids.append(note.id)
-            queryset = queryset.filter(id__in=matched_ids)
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(title__icontains=search) | 
+                Q(content__icontains=search, password_hash='')
+            )
             
         return queryset.distinct()
 
@@ -192,9 +197,38 @@ class NoteViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         """
         After updating a note, re-sync [[wikilinks]].
+        If title changed, update incoming links.
         """
+        old_title = self.get_object().title
         note = serializer.save()
         sync_note_links(note)
+
+        if old_title and note.title and old_title != note.title:
+            import re
+            incoming_links = note.incoming_links.select_related('source')
+            pattern = re.compile(r'(\[\[)(' + re.escape(old_title) + r')(\]\])', re.IGNORECASE)
+            
+            for link in incoming_links:
+                source_note = link.source
+                if source_note.content:
+                    new_content = pattern.sub(r'\g<1>' + note.title + r'\g<3>', source_note.content)
+                    if new_content != source_note.content:
+                        source_note.content = new_content
+                        source_note.save(update_fields=['content', 'updated_at'])
+
+    def perform_destroy(self, instance):
+        """Soft-delete: move to trash instead of permanent deletion."""
+        instance.is_trashed = True
+        instance.deleted_at = timezone.now()
+        instance.save(update_fields=['is_trashed', 'deleted_at'])
+        # Deactivate any active share link
+        try:
+            share_link = instance.share_link
+            if share_link.is_active:
+                share_link.is_active = False
+                share_link.save(update_fields=['is_active'])
+        except ShareLink.DoesNotExist:
+            pass
 
 class DuplicateNoteView(APIView):
     """
@@ -205,7 +239,7 @@ class DuplicateNoteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, note_id):
-        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        note = get_object_or_404(Note, id=note_id, owner=request.user, is_trashed=False)
         
         from datetime import timedelta
         # Create a new note mimicking the old one
@@ -226,20 +260,6 @@ class DuplicateNoteView(APIView):
         serializer = NoteSerializer(new_note, context={'request': request, 'include_protected_content': True})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def perform_destroy(self, instance):
-        """Soft-delete: move to trash instead of permanent deletion."""
-        instance.is_trashed = True
-        instance.deleted_at = timezone.now()
-        instance.save(update_fields=['is_trashed', 'deleted_at'])
-        # Deactivate any active share link
-        try:
-            share_link = instance.share_link
-            if share_link.is_active:
-                share_link.is_active = False
-                share_link.save(update_fields=['is_active'])
-        except ShareLink.DoesNotExist:
-            pass
-
 # ---------------------------------------------------------------------------
 # Share Views
 # ---------------------------------------------------------------------------
@@ -248,7 +268,7 @@ class ShareNoteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, note_id):
-        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        note = get_object_or_404(Note, id=note_id, owner=request.user, is_trashed=False)
         share_link, created = ShareLink.objects.get_or_create(note=note)
         if not share_link.is_active:
             share_link.is_active = True
@@ -257,7 +277,7 @@ class ShareNoteView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
 
     def delete(self, request, note_id):
-        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        note = get_object_or_404(Note, id=note_id, owner=request.user, is_trashed=False)
         try:
             share_link = note.share_link
             share_link.is_active = False
@@ -270,8 +290,9 @@ class NotePasswordView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, note_id):
-        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        note = get_object_or_404(Note, id=note_id, owner=request.user, is_trashed=False)
         password = request.data.get('password', '')
+        password = str(password) if password is not None else ''
         if not password or len(password) < 4:
             return Response({"detail": "Password must be at least 4 characters."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -281,11 +302,12 @@ class NotePasswordView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def delete(self, request, note_id):
-        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        note = get_object_or_404(Note, id=note_id, owner=request.user, is_trashed=False)
         if not note.password_hash:
             return Response({"detail": "This note is not password protected."}, status=status.HTTP_400_BAD_REQUEST)
 
         password = request.data.get('password', '')
+        password = str(password) if password is not None else ''
         if not password or not check_password(password, note.password_hash):
             return Response({"detail": "Incorrect password."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -296,10 +318,12 @@ class NotePasswordView(APIView):
 
 class UnlockNoteView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [PasswordUnlockThrottle]
 
     def post(self, request, note_id):
-        note = get_object_or_404(Note, id=note_id, owner=request.user)
+        note = get_object_or_404(Note, id=note_id, owner=request.user, is_trashed=False)
         password = request.data.get('password', '')
+        password = str(password) if password is not None else ''
         if not note.password_hash:
             serializer = NoteSerializer(note, context={'request': request, 'include_protected_content': True})
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -356,23 +380,11 @@ class SharedWithMeView(generics.ListAPIView):
 
         search = self.request.query_params.get('search')
         if search:
-            from thefuzz import fuzz
-            matched_ids = []
-            search_str = search.lower()
-            for shared_note in queryset:
-                note = shared_note.note
-                t_score = fuzz.partial_ratio(search_str, note.title.lower() if note.title else "")
-                c_score = 0
-                t_score2 = fuzz.token_set_ratio(search_str, note.title.lower() if note.title else "")
-                c_score2 = 0
-                
-                if not note.password_hash:
-                    c_score = fuzz.partial_ratio(search_str, note.content.lower() if note.content else "")
-                    c_score2 = fuzz.token_set_ratio(search_str, note.content.lower() if note.content else "")
-                
-                if max(t_score, c_score, t_score2, c_score2) > 65:
-                    matched_ids.append(shared_note.id)
-            queryset = queryset.filter(id__in=matched_ids)
+            from django.db.models import Q
+            queryset = queryset.filter(
+                Q(note__title__icontains=search) | 
+                Q(note__content__icontains=search, note__password_hash='')
+            )
 
         return queryset.distinct()
 
@@ -409,11 +421,13 @@ class CopySharedNoteView(APIView):
             copied_tags.append(tag)
 
         copied_note.tags.set(copied_tags)
+        sync_note_links(copied_note)
         serializer = NoteSerializer(copied_note, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class UnlockSharedNoteView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [PasswordUnlockThrottle]
 
     def post(self, request, note_id):
         shared_note = get_object_or_404(
@@ -424,6 +438,7 @@ class UnlockSharedNoteView(APIView):
         )
         note = shared_note.note
         password = request.data.get('password', '')
+        password = str(password) if password is not None else ''
         if not note.password_hash:
             serializer = NoteSerializer(note, context={'request': request, 'include_protected_content': True})
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -453,12 +468,6 @@ class TrashListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from datetime import timedelta
-        # Opportunistic purge: permanently delete notes trashed > 30 days ago
-        cutoff = timezone.now() - timedelta(days=30)
-        Note.objects.filter(owner=request.user, is_trashed=True, deleted_at__lt=cutoff).delete()
-        SharedNote.objects.filter(user=request.user, is_trashed=True, deleted_at__lt=cutoff).delete()
-
         items = []
 
         from django.db.models import Prefetch, Count
@@ -678,28 +687,11 @@ class NoteTitleSearchView(APIView):
                 is_trashed=False,
             ).order_by('title').values_list('id', 'title')[:15]
         else:
-            base_qs = Note.objects.filter(
+            notes = Note.objects.filter(
                 owner=request.user,
                 is_trashed=False,
-            )
-            
-            from thefuzz import fuzz
-            search_str = query.lower()
-            scored_notes = []
-            
-            for note in base_qs:
-                title = note.title or ""
-                t_score = fuzz.partial_ratio(search_str, title.lower())
-                t_score2 = fuzz.token_set_ratio(search_str, title.lower())
-                
-                max_score = max(t_score, t_score2)
-                if max_score > 65:
-                    scored_notes.append((max_score, note.id, title))
-            
-            # Sort by score descending, then by title alphabetically
-            scored_notes.sort(key=lambda x: (-x[0], x[2]))
-            
-            notes = [(n[1], n[2]) for n in scored_notes[:10]]
+                title__icontains=query
+            ).order_by('title').values_list('id', 'title')[:10]
 
         return Response([
             {'id': str(nid), 'title': title}
@@ -729,6 +721,9 @@ class ImageUploadView(APIView):
         file_obj = request.FILES.get('image')
         if not file_obj:
             return Response({'error': 'No image provided'}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if file_obj.size > 5 * 1024 * 1024:  # 5MB limit
+            return Response({'error': 'Image file too large (max 5MB)'}, status=status.HTTP_400_BAD_REQUEST)
             
         ext = os.path.splitext(file_obj.name)[1].lower()
         if ext not in ['.jpg', '.jpeg', '.png', '.gif', '.webp']:

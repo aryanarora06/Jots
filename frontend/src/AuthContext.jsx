@@ -9,14 +9,14 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const fetchUser = async () => {
+    const fetchUser = React.useCallback(async () => {
         try {
             const res = await api.get('/api/auth/me/');
             setUser(res.data);
         } catch (error) {
             console.error('Failed to fetch user:', error);
         }
-    };
+    }, [setUser]);
 
     useEffect(() => {
         const token = localStorage.getItem('access');
@@ -25,7 +25,17 @@ export const AuthProvider = ({ children }) => {
             fetchUser();
         }
         setIsLoading(false);
-    }, []);
+
+        const handleAuthLogout = () => {
+            // Local cleanup only since token is already expired
+            googleLogout();
+            setIsAuthenticated(false);
+            setUser(null);
+        };
+
+        window.addEventListener('auth:logout', handleAuthLogout);
+        return () => window.removeEventListener('auth:logout', handleAuthLogout);
+    }, [fetchUser]);
 
     const login = async (credential) => {
         try {

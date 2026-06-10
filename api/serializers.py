@@ -219,7 +219,15 @@ class NoteSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not value:
             raise serializers.ValidationError("Title must not be blank.")
-        return value
+        import bleach
+        return bleach.clean(value)
+
+    def validate_content(self, value: str) -> str:
+        import bleach
+        # Allow basic markdown HTML equivalents just in case, but block scripts/iframes
+        allowed_tags = ['b', 'i', 'strong', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'a', 'ul', 'ol', 'li', 'br', 'span', 'div', 'blockquote', 'code', 'pre', 'hr']
+        allowed_attrs = {'a': ['href', 'title'], '*': ['class']}
+        return bleach.clean(value, tags=allowed_tags, attributes=allowed_attrs)
 
     def validate_tag_ids(self, tags):
         user = self.context['request'].user

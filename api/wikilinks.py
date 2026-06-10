@@ -65,13 +65,19 @@ def sync_note_links(note) -> None:
         if t.lower() not in matched_titles_lower
     ]
     if remaining_titles:
+        from django.db.models import Q
+        q_objects = Q()
         for title in remaining_titles:
-            ci_match = Note.objects.filter(
-                owner=note.owner,
-                is_trashed=False,
-                title__iexact=title,
-            ).exclude(pk=note.pk).first()
-            if ci_match and ci_match.pk not in matched_ids:
+            q_objects |= Q(title__iexact=title)
+            
+        ci_matches = Note.objects.filter(
+            q_objects,
+            owner=note.owner,
+            is_trashed=False
+        ).exclude(pk=note.pk)
+        
+        for ci_match in ci_matches:
+            if ci_match.pk not in matched_ids:
                 matched_ids.add(ci_match.pk)
 
     # Get the final set of target notes

@@ -38,10 +38,12 @@ api.interceptors.response.use(
     async (response) => {
         // Cache successful GET requests for offline read
         if (response.config.method === 'get') {
-            const { setCache } = await import('./utils/offlineSync.js');
-            // use the full URL with params as cache key
             const url = api.getUri(response.config);
-            await setCache(url, response.data);
+            // Do not cache search queries as every keystroke creates a new infinite cache entry
+            if (!url.includes('search=')) {
+                const { setCache } = await import('./utils/offlineSync.js');
+                await setCache(url, response.data);
+            }
         }
         return response;
     },
@@ -88,13 +90,22 @@ api.interceptors.response.use(
                         responseData.is_temp = true;
                     }
 
-                    await enqueueSyncAction({
-                        url: originalRequest.url, // save original url without getUri to keep params clean
-                        method: originalRequest.method,
-                        data: parsedData,
-                        headers: originalRequest.headers,
-                        tempId: originalRequest.method === 'post' ? tempId : null
-                    });
+                    if (parsedData instanceof FormData) {
+                        return Promise.reject(new Error("Cannot queue file uploads offline."));
+                    }
+
+                    try {
+                        await enqueueSyncAction({
+                            url: originalRequest.url, // save original url without getUri to keep params clean
+                            method: originalRequest.method,
+                            data: parsedData,
+                            headers: originalRequest.headers,
+                            tempId: originalRequest.method === 'post' ? tempId : null
+                        });
+                    } catch (queueErr) {
+                        console.error('Failed to enqueue offline action:', queueErr);
+                        return Promise.reject(queueErr);
+                    }
                     
                     return Promise.resolve({
                         data: responseData,
@@ -116,7 +127,7 @@ api.interceptors.response.use(
                 if (originalRequest.url.includes('/refresh/')) {
                     localStorage.removeItem('access');
                     localStorage.removeItem('refresh');
-                    window.location.href = '/login';
+                    window.dispatchEvent(new CustomEvent('auth:logout'));
                 }
                 return Promise.reject(error);
             }
@@ -165,7 +176,7 @@ api.interceptors.response.use(
                 console.error('Session expired. Please login again.');
                 localStorage.removeItem('access');
                 localStorage.removeItem('refresh');
-                window.location.href = '/login';
+                window.dispatchEvent(new CustomEvent('auth:logout'));
                 return Promise.reject(err);
             }
         }

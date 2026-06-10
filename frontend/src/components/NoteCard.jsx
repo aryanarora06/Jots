@@ -65,8 +65,8 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
     }, []);
 
     const handleView = useCallback(() => {
-        if (onView) onView(note);
-    }, [onView, note]);
+        if (onView) onView(isShared ? { ...note, isShared, ownerName } : note);
+    }, [onView, note, isShared, ownerName]);
 
     const handleTagClick = useCallback((tagId) => {
         if (onTagClick) onTagClick(tagId);
@@ -115,7 +115,7 @@ const NoteCard = ({ note, onEdit, onDelete, onTagClick, onView, isShared, ownerN
             onClick={handleView}
             whileHover={{ y: -2 }}
             whileTap={tapAnimation}
-            className={`group relative bg-white dark:bg-black rounded-lg border overflow-hidden transition-colors flex flex-col h-[280px] cursor-pointer ${
+            className={`group relative bg-white dark:bg-black rounded-lg border transition-colors flex flex-col h-[280px] cursor-pointer ${
                 isSelected
                     ? 'border-black dark:border-white ring-1 ring-black dark:ring-white'
                     : 'border-gray-200 dark:border-gray-800 hover:border-gray-400 dark:hover:border-gray-600'

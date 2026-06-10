@@ -749,7 +749,7 @@ const Dashboard = () => {
             const currentList = [...filteredNotes];
             const oldIndex = currentList.findIndex(n => n.id === note.id);
             
-            const fakeUpdatedNotes = notes.map(n => n.id === note.id ? { ...n, is_favourite: !n.is_favourite } : n);
+            const fakeUpdatedNotes = notes.map(n => n.id === note.id ? { ...n, is_favourite: !n.is_favourite, updated_at: new Date().toISOString() } : n);
             const newList = sortNoteList(fakeUpdatedNotes);
             const newIndex = newList.findIndex(n => n.id === note.id);
             
@@ -1026,6 +1026,32 @@ const Dashboard = () => {
         setIsModalOpen(true);
     };
 
+    const actionsRef = useRef({});
+    actionsRef.current = {
+        openEditModal, handleDeleteNote, toggleTagFilter, setViewNote,
+        setShareNoteInfo, handleDuplicateNote, handleCopyContent,
+        handleToggleFavourite, handleSetNotePassword, handleRemoveNotePassword,
+        toggleNoteSelection, handleWikilinkClick,
+        handleRemoveSharedNote, handleCopySharedNote
+    };
+
+    const proxies = useMemo(() => ({
+        onEdit: (n) => actionsRef.current.openEditModal(n),
+        onDelete: (id) => actionsRef.current.handleDeleteNote(id),
+        onTagClick: (t) => actionsRef.current.toggleTagFilter(t),
+        onView: (n) => actionsRef.current.setViewNote(n),
+        onShare: (n) => actionsRef.current.setShareNoteInfo(n),
+        onDuplicate: (n) => actionsRef.current.handleDuplicateNote(n),
+        onCopyContent: (n) => actionsRef.current.handleCopyContent(n),
+        onToggleFavourite: (n) => actionsRef.current.handleToggleFavourite(n),
+        onSetPassword: (n) => actionsRef.current.handleSetNotePassword(n),
+        onRemovePassword: (n) => actionsRef.current.handleRemoveNotePassword(n),
+        onSelectToggle: (id, e) => actionsRef.current.toggleNoteSelection(id, e),
+        onWikilinkClick: (t, id) => actionsRef.current.handleWikilinkClick(t, id),
+        onDeleteShared: (id) => actionsRef.current.handleRemoveSharedNote(id),
+        onCopyShared: (n) => actionsRef.current.handleCopySharedNote(n),
+    }), []);
+
     return (
         <div className="min-h-[100dvh] overflow-x-hidden bg-white dark:bg-black transition-colors duration-200 flex flex-col font-sans">
             {/* Navbar */}
@@ -1059,7 +1085,7 @@ const Dashboard = () => {
                                     ref={searchInputRef}
                                     type="text"
                                     spellCheck="false"
-                                    className="block w-full pl-9 pr-12 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-md text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white transition-colors"
+                                    className="block w-full pl-9 pr-3 lg:pr-12 py-1.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-md text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white focus:border-black dark:focus:border-white transition-colors"
                                     placeholder="Search notes..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
@@ -1382,20 +1408,20 @@ const Dashboard = () => {
                                                 >
                                                     <NoteCard 
                                                         note={note} 
-                                                        onEdit={openEditModal}
-                                                        onDelete={handleDeleteNote}
-                                                        onTagClick={toggleTagFilter}
-                                                        onView={setViewNote}
-                                                        onShare={setShareNoteInfo}
-                                                        onDuplicate={handleDuplicateNote}
-                                                        onCopyContent={handleCopyContent}
-                                                        onToggleFavourite={handleToggleFavourite}
-                                                        onSetPassword={handleSetNotePassword}
-                                                        onRemovePassword={handleRemoveNotePassword}
+                                                        onEdit={proxies.onEdit}
+                                                        onDelete={proxies.onDelete}
+                                                        onTagClick={proxies.onTagClick}
+                                                        onView={proxies.onView}
+                                                        onShare={proxies.onShare}
+                                                        onDuplicate={proxies.onDuplicate}
+                                                        onCopyContent={proxies.onCopyContent}
+                                                        onToggleFavourite={proxies.onToggleFavourite}
+                                                        onSetPassword={proxies.onSetPassword}
+                                                        onRemovePassword={proxies.onRemovePassword}
                                                         isSelected={selectedNoteIds.has(note.id)}
-                                                        onSelectToggle={toggleNoteSelection}
+                                                        onSelectToggle={proxies.onSelectToggle}
                                                         hasSelection={selectedNoteIds.size > 0}
-                                                        onWikilinkClick={handleWikilinkClick}
+                                                        onWikilinkClick={proxies.onWikilinkClick}
                                                     />
                                                 </motion.div>
                                             ))}
@@ -1482,12 +1508,13 @@ const Dashboard = () => {
                                                     note={sn.note} 
                                                     isShared={true}
                                                     ownerName={sn.owner_username}
-                                                    onDelete={() => handleRemoveSharedNote(sn.note.id)}
-                                                    onCopy={handleCopySharedNote}
-                                                    onTagClick={toggleTagFilter}
-                                                    onView={(note) => setViewNote({...note, isShared: true, ownerName: sn.owner_username})}
+                                                    onTagClick={proxies.onTagClick}
+                                                    onView={proxies.onView}
+                                                    onDelete={proxies.onDeleteShared}
+                                                    onCopy={proxies.onCopyShared}
+                                                    onWikilinkClick={proxies.onWikilinkClick}
                                                     isSelected={selectedNoteIds.has(sn.note.id)}
-                                                    onSelectToggle={toggleNoteSelection}
+                                                    onSelectToggle={proxies.onSelectToggle}
                                                     hasSelection={selectedNoteIds.size > 0}
                                                     onWikilinkClick={handleWikilinkClick}
                                                 />

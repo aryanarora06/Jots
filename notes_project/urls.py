@@ -29,7 +29,7 @@ from rest_framework_simplejwt.views import (
     TokenBlacklistView,
 )
 from api.views import (
-    GoogleLoginView, NoteViewSet, TagViewSet,
+    UserRegistrationView, GoogleLoginView, NoteViewSet, TagViewSet,
     ShareNoteView, NotePasswordView, UnlockNoteView, AcceptShareView,
     SharedWithMeView, CopySharedNoteView, UnlockSharedNoteView, RemoveSharedNoteView,
     TrashListView, RestoreNoteView, RestoreSharedNoteView,
@@ -56,6 +56,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
 
     # ── Authentication ───────────────────────────────────────────────────────
+    path("api/auth/register/",       UserRegistrationView.as_view(), name="user-register"),
+    path("api/auth/token/",          TokenObtainPairView.as_view(),  name="token-obtain"),
     path("api/auth/google/",         GoogleLoginView.as_view(),     name="google-login"),
     path("api/auth/token/refresh/",  TokenRefreshView.as_view(),    name="token-refresh"),
     path("api/auth/token/blacklist/", TokenBlacklistView.as_view(), name="token-blacklist"),

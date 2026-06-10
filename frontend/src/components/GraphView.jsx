@@ -47,11 +47,12 @@ const GraphView = ({ darkMode, onNoteClick, selectedTagFilters = [], activeNoteI
         const handleKeyDown = (e) => {
             if (e.key === 'Escape') setIsSettingsOpen(false);
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        window.addEventListener('keydown', handleKeyDown);
+        // Use capture phase (true) so we intercept the click BEFORE the 3D canvas swallows it for dragging/panning
+        document.addEventListener('mousedown', handleClickOutside, true);
+        window.addEventListener('keydown', handleKeyDown, true);
         return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('mousedown', handleClickOutside, true);
+            window.removeEventListener('keydown', handleKeyDown, true);
         };
     }, [isSettingsOpen]);
 

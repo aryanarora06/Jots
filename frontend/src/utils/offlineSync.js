@@ -81,18 +81,25 @@ export const processSyncQueue = async (apiClient) => {
 
     for (const action of queue) {
         try {
-            // Map temp IDs to real IDs in the URL if needed
+            // Map temp IDs to real IDs in the URL and Payload if needed
             let finalUrl = action.url;
+            let finalData = action.data;
+            let dataStr = finalData ? JSON.stringify(finalData) : null;
+            
             for (const [tempId, realId] of Object.entries(idMap)) {
                 if (finalUrl.includes(tempId)) {
                     finalUrl = finalUrl.replace(tempId, realId);
                 }
+                if (dataStr && dataStr.includes(tempId)) {
+                    dataStr = dataStr.replace(new RegExp(tempId, 'g'), realId);
+                }
             }
+            if (dataStr) finalData = JSON.parse(dataStr);
 
             const res = await apiClient({
                 url: finalUrl,
                 method: action.method,
-                data: action.data,
+                data: finalData,
                 headers: action.headers
             });
 
