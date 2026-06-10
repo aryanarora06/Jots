@@ -170,6 +170,23 @@ html {
   color: currentColor;
 }
 
+/* Reduce spacing between lines and blocks in prose content */
+.prose {
+  line-height: 1.4 !important;
+}
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote,
+.prose pre {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important;
+}
+.prose li {
+  margin-top: 0.1em !important;
+  margin-bottom: 0.1em !important;
+}
+
 /* ── Animations ──────────────────────────────────────────────────────────── */
 
 @keyframes fade-in-up {

@@ -7,6 +7,20 @@ const api = axios.create({
     },
 });
 
+let isRefreshing = false;
+let failedQueue = [];
+
+const processQueue = (error, token = null) => {
+    failedQueue.forEach(prom => {
+        if (error) {
+            prom.reject(error);
+        } else {
+            prom.resolve(token);
+        }
+    });
+    failedQueue = [];
+};
+
 // Request Interceptor: Attach access token
 api.interceptors.request.use(
     (config) => {
@@ -107,6 +121,19 @@ api.interceptors.response.use(
                 return Promise.reject(error);
             }
 
+            if (isRefreshing) {
+                return new Promise(function(resolve, reject) {
+                    failedQueue.push({resolve, reject});
+                }).then(token => {
+                    originalRequest.headers.Authorization = `Bearer ${token}`;
+                    return api(originalRequest);
+                }).catch(err => {
+                    return Promise.reject(err);
+                });
+            }
+
+            isRefreshing = true;
+
             try {
                 const refreshToken = localStorage.getItem('refresh');
                 if (!refreshToken) {
@@ -125,9 +152,16 @@ api.interceptors.response.use(
                     localStorage.setItem('refresh', res.data.refresh);
                 }
 
+                api.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
                 originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+                processQueue(null, newAccessToken);
+                isRefreshing = false;
+
                 return api(originalRequest);
             } catch (err) {
+                processQueue(err, null);
+                isRefreshing = false;
                 console.error('Session expired. Please login again.');
                 localStorage.removeItem('access');
                 localStorage.removeItem('refresh');

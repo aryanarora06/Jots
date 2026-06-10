@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 export default function WikilinkAutocomplete({ onSelect }) {
     const [query, setQuery] = useState(null);
+    const [matchStr, setMatchStr] = useState(null);
     const [pos, setPos] = useState(null);
     const [results, setResults] = useState([]);
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -13,12 +14,14 @@ export default function WikilinkAutocomplete({ onSelect }) {
             const selection = window.getSelection();
             if (!selection || !selection.focusNode) {
                 setQuery(null);
+                setMatchStr(null);
                 return;
             }
             
             // Ensure we are inside the editor
             if (!selection.focusNode.parentElement?.closest('.prose')) {
                 setQuery(null);
+                setMatchStr(null);
                 return;
             }
             
@@ -28,22 +31,24 @@ export default function WikilinkAutocomplete({ onSelect }) {
                 const before = text.slice(0, offset);
                 
                 // Match [[ followed by anything except ]]
-                // MDXEditor escapes brackets as \[\[ internally but it renders in DOM as [[ 
                 const matchNormal = before.match(/\[\[([^\]]*)$/);
                 const matchEscaped = before.match(/\\\[\\\[([^\]]*)$/);
                 const match = matchNormal || matchEscaped;
                 
                 if (match) {
                     setQuery(match[1]);
+                    setMatchStr(match[0]);
                     try {
                         const range = selection.getRangeAt(0);
                         const rect = range.getBoundingClientRect();
                         setPos({ top: rect.bottom, left: rect.left });
                     } catch (e) {
                         setQuery(null);
+                        setMatchStr(null);
                     }
                 } else {
                     setQuery(null);
+                    setMatchStr(null);
                 }
             }
         };
@@ -82,19 +87,21 @@ export default function WikilinkAutocomplete({ onSelect }) {
                     e.preventDefault();
                     e.stopPropagation();
                     if (results[selectedIndex]) {
-                        onSelect(results[selectedIndex].title, query);
+                        onSelect(results[selectedIndex].title, query, matchStr);
                         setQuery(null);
+                        setMatchStr(null);
                     }
                 }
             } else if (e.key === 'Escape') {
                 setQuery(null);
+                setMatchStr(null);
             }
         };
         
         // Capture phase to intercept MDXEditor's own enter key handling
         document.addEventListener('keydown', handleKeyDown, true);
         return () => document.removeEventListener('keydown', handleKeyDown, true);
-    }, [query, results, selectedIndex, onSelect]);
+    }, [query, results, selectedIndex, onSelect, matchStr]);
 
     return (
         <AnimatePresence mode="wait">
@@ -111,8 +118,9 @@ export default function WikilinkAutocomplete({ onSelect }) {
                             key={r.id}
                             onMouseDown={(e) => {
                                 e.preventDefault(); // Prevent focus loss!
-                                onSelect(r.title, query); 
+                                onSelect(r.title, query, matchStr); 
                                 setQuery(null);
+                                setMatchStr(null);
                             }}
                             className={`px-3 py-2 text-sm cursor-pointer transition-colors ${i === selectedIndex ? 'bg-black text-white dark:bg-white dark:text-black font-medium' : 'text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
                         >

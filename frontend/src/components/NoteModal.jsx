@@ -175,28 +175,70 @@ const NoteModal = ({ isOpen, onClose, onSave, note, availableTags = [], onCreate
         e.target.value = '';
     };
 
-    const handleWikilinkSelect = (title, query) => {
+    const handleWikilinkSelect = (title, query, matchStr) => {
         if (!editorRef.current) return;
         
         const currentMarkdown = editorRef.current.getMarkdown();
         let searchStr = `[[${query || ''}`;
         let lastIndex = currentMarkdown.lastIndexOf(searchStr);
         
-        // MDXEditor sometimes escapes unmatched brackets in getMarkdown() as \[\[
         if (lastIndex === -1) {
             searchStr = `\\[\\[${query || ''}`;
             lastIndex = currentMarkdown.lastIndexOf(searchStr);
         }
         
         if (lastIndex !== -1) {
-            const newMarkdown = currentMarkdown.slice(0, lastIndex) + `[[${title}]] ` + currentMarkdown.slice(lastIndex + searchStr.length);
+            const linkText = `[[${title}]]`;
+            // Insert the link with a trailing space
+            const newMarkdown = currentMarkdown.slice(0, lastIndex) + linkText + ' ' + currentMarkdown.slice(lastIndex + searchStr.length);
+            
+            // This reliably replaces the markdown content
             editorRef.current.setMarkdown(newMarkdown);
             setContent(newMarkdown);
             
-            // Refocus the editor so user can continue typing
+            // Wait for Lexical to render the new state
             setTimeout(() => {
-                editorRef.current?.focus();
-            }, 50);
+                const editorElement = document.querySelector('.prose[contenteditable="true"]');
+                if (!editorElement) return;
+                
+                editorElement.focus();
+                
+                const walker = document.createTreeWalker(editorElement, NodeFilter.SHOW_TEXT, null, false);
+                let node;
+                let targetNode = null;
+                let targetOffset = 0;
+                
+                // Find the text node containing our inserted link
+                while ((node = walker.nextNode())) {
+                    const idx = node.nodeValue.lastIndexOf(linkText);
+                    if (idx !== -1) {
+                        targetNode = node;
+                        targetOffset = idx + linkText.length;
+                        // If the text node includes the trailing space, jump over it
+                        if (node.nodeValue[targetOffset] === ' ') {
+                            targetOffset += 1;
+                        }
+                    }
+                }
+                
+                const range = document.createRange();
+                const sel = window.getSelection();
+                
+                if (targetNode) {
+                    range.setStart(targetNode, targetOffset);
+                    range.collapse(true);
+                } else {
+                    // Fallback to absolute end
+                    range.selectNodeContents(editorElement);
+                    range.collapse(false);
+                }
+                
+                sel.removeAllRanges();
+                sel.addRange(range);
+                
+                // CRITICAL: Tell Lexical to sync its internal state with our manually placed DOM cursor
+                document.dispatchEvent(new Event('selectionchange'));
+            }, 100);
         }
     };
 
