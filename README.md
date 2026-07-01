@@ -96,5 +96,4 @@ Jots is fully configured for zero-downtime deployments via Vercel and Render. Th
 - **Password Policies:** Django's native robust password validators enforce minimum complexity on all user accounts.
 - **Encrypted Sharing:** Shared note passwords are mathematically hashed before entering the database.
 
----
-*Built for elegant note-taking.*
+
